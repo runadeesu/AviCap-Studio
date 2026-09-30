@@ -1,0 +1,6 @@
+if(AVICAP_BUILD_CLI AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/cli/CMakeLists.txt")
+    add_subdirectory(cli)
+endif()
+if(AVICAP_BUILD_APP)
+    add_subdirectory(studio)
+endif()

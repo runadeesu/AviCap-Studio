@@ -1,0 +1,29 @@
+# Cross-compile AviCap Studio for Windows x64 from Linux with MinGW-w64 (posix threads).
+set(CMAKE_SYSTEM_NAME Windows)
+set(CMAKE_SYSTEM_PROCESSOR AMD64)
+
+set(TOOLCHAIN_PREFIX x86_64-w64-mingw32)
+set(CMAKE_C_COMPILER   ${TOOLCHAIN_PREFIX}-gcc-posix)
+set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}-g++-posix)
+set(CMAKE_RC_COMPILER  ${TOOLCHAIN_PREFIX}-windres)
+
+get_filename_component(_repo "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+if(NOT AVICAP_MINGW_PREFIX)
+    set(AVICAP_MINGW_PREFIX "${_repo}/third_party/prefix-mingw64")
+endif()
+
+set(CMAKE_FIND_ROOT_PATH /usr/${TOOLCHAIN_PREFIX} "${AVICAP_MINGW_PREFIX}")
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
+
+set(ENV{PKG_CONFIG_LIBDIR} "${AVICAP_MINGW_PREFIX}/lib/pkgconfig")
+set(ENV{PKG_CONFIG_PATH} "${AVICAP_MINGW_PREFIX}/lib/pkgconfig")
+set(ENV{PKG_CONFIG_SYSROOT_DIR} "")
+
+# Run test executables through Wine when available.
+find_program(WINE_EXECUTABLE NAMES wine wine64)
+if(WINE_EXECUTABLE)
+    set(CMAKE_CROSSCOMPILING_EMULATOR ${WINE_EXECUTABLE})
+endif()

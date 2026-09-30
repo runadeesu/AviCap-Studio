@@ -1,0 +1,18 @@
+# Build output
+/build/
+/out/
+/release/
+/third_party/prefix-*/
+/vcpkg_installed/
+/.vs/
+/CMakeUserPresets.json
+*.user
+*.suo
+*.aps
+
+# Test / runtime artifacts
+/test_media/
+*.avicap.lock
+*.log
+*.dmp
+/Testing/
