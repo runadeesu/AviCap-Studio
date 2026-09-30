@@ -59,8 +59,11 @@ ParamValue valueOf(const Json& j) {
 
 Json effectsJ(const std::vector<EffectInstance>& fx) {
     Json a = Json::array();
-    for (auto& e : fx)
-        a.push_back({{"id", idJ(e.id)}, {"effect", e.effectId}, {"enabled", e.enabled}, {"params", paramSetToJson(e.params)}});
+    for (auto& e : fx) {
+        Json ej{{"id", idJ(e.id)}, {"effect", e.effectId}, {"enabled", e.enabled}, {"params", paramSetToJson(e.params)}};
+        if (!e.properties.empty()) ej["properties"] = e.properties;
+        a.push_back(std::move(ej));
+    }
     return a;
 }
 
@@ -74,6 +77,7 @@ std::vector<EffectInstance> effectsOf(const Json& j) {
         fx.effectId = val<std::string>(e, "effect", "");
         fx.enabled = val<bool>(e, "enabled", true);
         if (auto it = e.find("params"); it != e.end()) fx.params = paramSetFromJson(*it);
+        fx.properties = val<std::map<std::string, std::string>>(e, "properties", {});
         if (!fx.effectId.empty()) out.push_back(std::move(fx));
     }
     return out;

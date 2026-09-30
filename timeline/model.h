@@ -10,6 +10,7 @@
 // without locks, and undo/redo simply swaps snapshot roots.
 
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -124,6 +125,8 @@ struct EffectInstance {
     std::string effectId;  // registry id, e.g. "blur.gaussian"
     bool enabled = true;
     ParamSet params;
+    // Non-numeric data: curve points, LUT file, mask polygon (JSON strings).
+    std::map<std::string, std::string> properties;
     bool operator==(const EffectInstance&) const = default;
 };
 
