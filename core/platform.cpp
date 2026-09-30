@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <chrono>
+#include <ctime>
 #include <thread>
 
 #include "core/strings.h"
@@ -314,6 +316,20 @@ bool revealInFileManager(const std::filesystem::path& p) {
 #else
     return openWithShell(pathToUtf8(p.parent_path()));
 #endif
+}
+
+std::string utcNowIso8601() {
+    const std::time_t tt = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm tm{};
+#if defined(_WIN32)
+    gmtime_s(&tm, &tt);
+#else
+    gmtime_r(&tt, &tm);
+#endif
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%04d-%02d-%02dT%02d:%02d:%02dZ", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+                  tm.tm_hour, tm.tm_min, tm.tm_sec);
+    return buf;
 }
 
 }  // namespace avc

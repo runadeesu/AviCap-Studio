@@ -96,7 +96,8 @@ public:
     [[nodiscard]] bool empty() const noexcept { return items_.empty(); }
     [[nodiscard]] size_t size() const noexcept { return items_.size(); }
 
-    bool operator==(const ParamSet&) const = default;
+    // Order-insensitive comparison.
+    bool operator==(const ParamSet& o) const;
 
 private:
     std::vector<std::pair<std::string, AnimatedParam>> items_;

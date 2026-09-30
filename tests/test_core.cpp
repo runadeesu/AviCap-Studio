@@ -121,7 +121,8 @@ TEST_CASE("UTF-8 helpers and paths") {
 TEST_CASE("atomic file write replaces content and handles unicode names") {
     auto dir = test::makeTempDir("atomic");
     auto file = dir / pathFromUtf8("プロジェクト.avicap");
-    REQUIRE(writeFileAtomic(file, "first"));
+    Status st = writeFileAtomic(file, "first");
+    REQUIRE_MESSAGE(st, st.message());
     CHECK(*readFileBytes(file) == "first");
     AtomicWriteOptions opt;
     opt.keepBackup = true;

@@ -62,4 +62,7 @@ bool revealInFileManager(const std::filesystem::path& p);
 
 std::optional<std::string> getEnv(const char* name);
 
+// Current UTC time as "YYYY-MM-DDTHH:MM:SSZ".
+std::string utcNowIso8601();
+
 }  // namespace avc

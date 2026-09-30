@@ -141,7 +141,6 @@ void AnimatedParam::setKeys(std::vector<Keyframe> keys) {
         else out.push_back(k);
     }
     keys_ = std::move(out);
-    if (!keys_.empty()) value_ = keys_.front().value;
 }
 
 void AnimatedParam::shiftKeys(Time delta) {
@@ -193,6 +192,15 @@ bool ParamSet::remove(std::string_view id) {
 
 void ParamSet::shiftAllKeys(Time delta) {
     for (auto& [k, v] : items_) v.shiftKeys(delta);
+}
+
+bool ParamSet::operator==(const ParamSet& o) const {
+    if (items_.size() != o.items_.size()) return false;
+    for (auto& [k, v] : items_) {
+        const AnimatedParam* other = o.find(k);
+        if (!other || !(*other == v)) return false;
+    }
+    return true;
 }
 
 bool ParamSet::anyAnimated() const {

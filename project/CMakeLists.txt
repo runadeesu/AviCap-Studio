@@ -1,1 +1,9 @@
-# Module 'project' - sources are added as the module is implemented.
+avicap_add_module(project
+    SOURCES
+        serialize.cpp
+        migrate.cpp
+        journal.cpp
+        relink.cpp
+    DEPS
+        AviCap::timeline
+        AviCap::json)
