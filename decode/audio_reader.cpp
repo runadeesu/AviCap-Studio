@@ -125,9 +125,15 @@ private:
             av_channel_layout_copy(&inLayout, &f->ch_layout);
         int r = swr_alloc_set_opts2(&s, &outLayout, AV_SAMPLE_FMT_FLT, out_.sampleRate, &inLayout,
                                     static_cast<AVSampleFormat>(f->format), f->sample_rate, 0, nullptr);
+        const bool monoIn = inLayout.nb_channels == 1;
         av_channel_layout_uninit(&inLayout);
         av_channel_layout_uninit(&outLayout);
         if (r < 0 || !s) return false;
+        // Mono sources play at unity in both channels (not the -3 dB centre mix).
+        if (monoIn && out_.channels == 2) {
+            const double matrix[2] = {1.0, 1.0};  // out[ch][in], stride 1
+            swr_set_matrix(s, matrix, 1);
+        }
         if (swr_init(s) < 0) {
             swr_free(&s);
             return false;
