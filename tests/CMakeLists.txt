@@ -18,12 +18,9 @@ if(AVICAP_FFMPEG_CLI AND AVICAP_BASH)
         COMMENT "Generating test media")
 endif()
 
-# Link every engine module that has been built.
-foreach(_module IN LISTS AVICAP_ENGINE_MODULES)
-    if(TARGET avicap_${_module})
-        target_link_libraries(avicap_tests PRIVATE avicap_${_module})
-    endif()
-endforeach()
+# Link every engine module.
+get_property(_modules GLOBAL PROPERTY AVICAP_MODULE_TARGETS)
+target_link_libraries(avicap_tests PRIVATE ${_modules})
 
 add_test(NAME unit_tests COMMAND avicap_tests --exclude-test-case-glob=*[stress]* --duration=false)
 add_test(NAME stress_tests COMMAND avicap_tests --test-case-glob=*[stress]*)
