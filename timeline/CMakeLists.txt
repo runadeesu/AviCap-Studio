@@ -1,1 +1,11 @@
-# Module 'timeline' - sources are added as the module is implemented.
+avicap_add_module(timeline
+    SOURCES
+        params.cpp
+        model.cpp
+        editor.cpp
+        edit_ops.cpp
+        document.cpp
+        snap.cpp
+        evaluate.cpp
+    DEPS
+        AviCap::core)
