@@ -1,0 +1,7 @@
+add_executable(avicap_cli main.cpp)
+set_target_properties(avicap_cli PROPERTIES OUTPUT_NAME "avicap-cli")
+target_link_libraries(avicap_cli PRIVATE avicap_options AviCap::export AviCap::project AviCap::proxy AviCap::stb)
+if(MINGW)
+    target_link_options(avicap_cli PRIVATE -municode)
+endif()
+install(TARGETS avicap_cli RUNTIME DESTINATION .)

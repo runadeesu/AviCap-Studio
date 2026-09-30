@@ -250,10 +250,15 @@ Result<Compositor::LayerImage> Compositor::sourceImage(const ProjectPtr& project
         const VideoFrame& f = **frame;
         img.tex = gpu::uploadVideoFrame(device_, pool_, f);
         if (!img.tex) return Result<LayerImage>::error("Frame upload failed");
-        img.width = static_cast<float>(f.width);
-        img.height = static_cast<float>(f.height);
+        // Logical size comes from the original media so that proxies (smaller
+        // frames) produce exactly the same geometry as the full-resolution file.
+        const VideoStreamInfo* vinfo = media->info.primaryVideo();
+        const bool known = vinfo && vinfo->width > 0 && vinfo->height > 0;
+        img.width = known ? static_cast<float>(vinfo->width) : static_cast<float>(f.width);
+        img.height = known ? static_cast<float>(vinfo->height) : static_cast<float>(f.height);
         img.rotation = f.rotation;
-        img.sar = f.sampleAspect;
+        img.sar = known && vinfo->sampleAspect.num > 0 ? vinfo->sampleAspect : f.sampleAspect;
+        img.pixelScale = img.width > 0 ? static_cast<float>(f.width) / img.width : 1.0f;
         return img;
     }
     case ClipKind::Text:

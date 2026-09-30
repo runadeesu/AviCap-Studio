@@ -1,1 +1,3 @@
-# Module 'proxy' - sources are added as the module is implemented.
+avicap_add_module(proxy
+    SOURCES proxy.cpp
+    DEPS AviCap::media AviCap::timeline)

@@ -14,6 +14,7 @@ avicap_add_module(core
         file_io.cpp
         settings.cpp
         i18n.cpp
+        process.cpp
     DEPS
         AviCap::json
         ${_platform_libs})
