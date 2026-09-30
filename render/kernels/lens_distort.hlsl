@@ -15,7 +15,7 @@ float4 kernel_main(KERNEL_CTX) {
         src = d * f / max(P(0).z, 0.01f);
     } else {
         float strength = max(P(1).y, 0.001f);
-        float theta = atan(r * strength) / strength;
+        float theta = atanPoly(r * strength) / strength;
         src = r > 0.0f ? d * (theta / r) / max(P(0).z, 0.01f) : d;
     }
     src.x = src.x / aspect;

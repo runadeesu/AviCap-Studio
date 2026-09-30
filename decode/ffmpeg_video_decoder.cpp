@@ -205,6 +205,11 @@ private:
             auto* d3d = static_cast<AVD3D11VADeviceContext*>(dctx->hwctx);
             d3d->device = static_cast<ID3D11Device*>(opt_.d3d11Device);
             d3d->device->AddRef();
+            if (opt_.d3d11Lock && opt_.d3d11Unlock) {
+                d3d->lock = opt_.d3d11Lock;
+                d3d->unlock = opt_.d3d11Unlock;
+                d3d->lock_ctx = opt_.d3d11LockCtx;
+            }
             r = av_hwdevice_ctx_init(hwDevice_);
         } else {
             r = av_hwdevice_ctx_create(&hwDevice_, AV_HWDEVICE_TYPE_D3D11VA, nullptr, nullptr, 0);

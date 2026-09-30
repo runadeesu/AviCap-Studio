@@ -34,11 +34,10 @@ struct KernelContext { float2 uv; float2 pos; float2 size; };
 #define LOOP [loop]
 #define UNROLL [unroll]
 #define STATIC_CONST static const
-float2 xy(float4 v) { return v.xy; }
-float2 zw(float4 v) { return v.zw; }
-float2 xy(float3 v) { return v.xy; }
-float3 xyz(float4 v) { return v.xyz; }
-float2 yx(float2 v) { return v.yx; }
+#define xy(v) ((v).xy)
+#define zw(v) ((v).zw)
+#define xyz(v) ((v).xyz)
+#define yx(v) ((v).yx)
 )";
 }
 

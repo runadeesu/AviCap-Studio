@@ -213,6 +213,9 @@ TexturePtr uploadVideoFrame(Device& device, TexturePool& pool, const VideoFrame&
             return nullptr;
         }
         mode = 2.0f;
+        // Decoder surfaces are padded (e.g. 1088 rows): sample only the picture.
+        p.set(3, static_cast<float>(f.width) / static_cast<float>(planes[0]->width()),
+              static_cast<float>(f.height) / static_cast<float>(planes[0]->height()));
     } else {
         switch (f.format) {
         case PixelFormat::RGBA8:
@@ -293,5 +296,8 @@ std::vector<uint8_t> readbackRgba8(Device& device, const Texture& tex, bool unpr
     }
     return out;
 }
+
+void deviceLockThunk(void* device) { static_cast<Device*>(device)->lock(); }
+void deviceUnlockThunk(void* device) { static_cast<Device*>(device)->unlock(); }
 
 }  // namespace avc::gpu

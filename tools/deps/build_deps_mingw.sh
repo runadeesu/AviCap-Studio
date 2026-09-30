@@ -125,8 +125,7 @@ if ! stamp ffmpeg-$FFMPEG_TAG; then
     --enable-amf \
     --enable-schannel \
     --extra-cflags="-I$PREFIX/include -O2" \
-    --extra-ldflags="-L$PREFIX/lib -static-libgcc" \
-    --extra-libs="-lwinpthread"
+    --extra-ldflags="-L$PREFIX/lib -static-libgcc -Wl,-Bstatic,-lwinpthread,-Bdynamic"
   make -j"$JOBS"
   make install
   popd >/dev/null

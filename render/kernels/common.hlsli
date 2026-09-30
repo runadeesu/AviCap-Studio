@@ -63,6 +63,16 @@ float valueNoise(float2 p) {
     return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
 }
 
+// atan without relying on the intrinsic (not supported by every HLSL compiler).
+float atanPoly(float x) {
+    float ax = abs(x);
+    float inv = ax > 1.0f ? 1.0f / ax : ax;
+    float z = inv * inv;
+    float r = inv * (0.99997726f + z * (-0.33262347f + z * (0.19354346f + z * (-0.11643287f + z * (0.05265332f - 0.01172120f * z)))));
+    if (ax > 1.0f) r = 1.5707963f - r;
+    return x < 0.0f ? -r : r;
+}
+
 bool insideUnit(float2 uv) { return uv.x >= 0.0f && uv.y >= 0.0f && uv.x <= 1.0f && uv.y <= 1.0f; }
 
 // Sample with transparent border.

@@ -31,6 +31,9 @@ struct FrameProviderOptions {
     int maxOpenDecoders = 24;
     HwDecodeMode hardware = HwDecodeMode::Off;
     void* d3d11Device = nullptr;
+    void (*d3d11Lock)(void*) = nullptr;
+    void (*d3d11Unlock)(void*) = nullptr;
+    void* d3d11LockCtx = nullptr;
     bool fastDecode = false;
 };
 

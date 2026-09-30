@@ -4,7 +4,7 @@ file(GLOB AVICAP_KERNEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/k
 set(_gpu_sources gpu/gpu_common.cpp gpu/cpu_device.cpp gpu/shader_source.cpp)
 set(_gpu_libs "")
 if(WIN32)
-    list(APPEND _gpu_sources gpu/d3d11_device.cpp gpu/shader_cache.cpp)
+    list(APPEND _gpu_sources gpu/d3d11_device.cpp)
     set(_gpu_libs d3d11 dxgi d3dcompiler)
 endif()
 avicap_add_module(gpu

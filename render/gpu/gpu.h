@@ -145,7 +145,30 @@ public:
     }
     // True when the device was lost (driver reset) and must be recreated.
     [[nodiscard]] virtual bool deviceLost() const { return false; }
+    // Native shader resource view (ID3D11ShaderResourceView*) for UI display.
+    [[nodiscard]] virtual void* nativeView(const Texture& tex) const {
+        (void)tex;
+        return nullptr;
+    }
+    // Serializes access to the immediate context shared with hardware decoders.
+    virtual void lock() {}
+    virtual void unlock() {}
+    // Current and budgeted video memory in bytes (0 when unknown).
+    [[nodiscard]] virtual uint64_t videoMemoryUsage() const { return 0; }
+    [[nodiscard]] virtual uint64_t videoMemoryBudget() const { return 0; }
 };
+
+struct D3D11DeviceOptions {
+    bool warp = false;          // force the software rasterizer
+    std::string adapterName;    // substring match; empty = highest performance
+    bool debugLayer = false;
+    std::string shaderCacheDir; // empty = no disk cache
+};
+
+// Windows only; returns nullptr (with `error`) when Direct3D 11 is unavailable.
+std::unique_ptr<Device> createD3D11Device(const D3D11DeviceOptions& opt, std::string* error = nullptr);
+// Full HLSL source (prelude + kernel + epilogue) for the GPU backends.
+std::string kernelHlslSource(Kernel k);
 
 // ---- helpers --------------------------------------------------------------------
 
@@ -179,5 +202,9 @@ TexturePtr uploadVideoFrame(Device& device, TexturePool& pool, const VideoFrame&
 std::vector<uint8_t> readbackRgba8(Device& device, const Texture& tex, bool unpremultiply = true);
 
 std::unique_ptr<Device> createCpuDevice(unsigned threads = 0);
+
+// C callbacks (ctx = Device*) handed to FFmpeg's D3D11VA device context.
+void deviceLockThunk(void* device);
+void deviceUnlockThunk(void* device);
 
 }  // namespace avc::gpu

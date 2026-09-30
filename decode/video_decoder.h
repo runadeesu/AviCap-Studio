@@ -26,6 +26,11 @@ struct VideoDecoderOptions {
     int streamIndex = -1;  // -1: best video stream
     HwDecodeMode hardware = HwDecodeMode::Off;
     void* d3d11Device = nullptr;  // ID3D11Device* shared with the renderer (Keep mode)
+    // Lock shared with the renderer so decoder and compositor never use the
+    // immediate context concurrently.
+    void (*d3d11Lock)(void*) = nullptr;
+    void (*d3d11Unlock)(void*) = nullptr;
+    void* d3d11LockCtx = nullptr;
     int threads = 0;              // 0: automatic
     // When > 0, frames are downscaled on decode to fit this box (thumbnails,
     // analysis) and converted to RGBA8.

@@ -78,6 +78,9 @@ Result<VideoFramePtr> MediaFrameProvider::videoFrame(const MediaItem& media, int
         o.streamIndex = streamIndex;
         o.hardware = opt_.hardware;
         o.d3d11Device = opt_.d3d11Device;
+        o.d3d11Lock = opt_.d3d11Lock;
+        o.d3d11Unlock = opt_.d3d11Unlock;
+        o.d3d11LockCtx = opt_.d3d11LockCtx;
         o.fastDecode = opt_.fastDecode;
         auto dec = openVideoDecoder(path, o);
         if (!dec) {
