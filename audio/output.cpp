@@ -58,6 +58,10 @@ private:
 
 #if defined(_WIN32)
 
+// Local definitions avoid depending on GUID libraries that differ between SDKs.
+const GUID kSubtypeIeeeFloat = {0x00000003, 0x0000, 0x0010, {0x80, 0x00, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
+const PROPERTYKEY kFriendlyName = {{0xa45c254e, 0xdf1c, 0x4efd, {0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0}}, 14};
+
 template <typename T>
 void safeRelease(T*& p) {
     if (p) p->Release();
@@ -94,7 +98,7 @@ public:
         if (SUCCEEDED(device_->OpenPropertyStore(STGM_READ, &props))) {
             PROPVARIANT v;
             PropVariantInit(&v);
-            if (SUCCEEDED(props->GetValue(PKEY_Device_FriendlyName, &v)) && v.vt == VT_LPWSTR) name_ = wideToUtf8(v.pwszVal);
+            if (SUCCEEDED(props->GetValue(kFriendlyName, &v)) && v.vt == VT_LPWSTR) name_ = wideToUtf8(v.pwszVal);
             PropVariantClear(&v);
             props->Release();
         }
@@ -113,7 +117,7 @@ public:
         wf.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
         wf.Samples.wValidBitsPerSample = 32;
         wf.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-        wf.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+        wf.SubFormat = kSubtypeIeeeFloat;
         const REFERENCE_TIME dur = static_cast<REFERENCE_TIME>(std::max(5, bufferMs)) * 10000;
         const DWORD flags = AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM |
                             AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
@@ -248,7 +252,7 @@ std::vector<AudioDeviceInfo> listAudioOutputs() {
             if (SUCCEEDED(d->OpenPropertyStore(STGM_READ, &props))) {
                 PROPVARIANT v;
                 PropVariantInit(&v);
-                if (SUCCEEDED(props->GetValue(PKEY_Device_FriendlyName, &v)) && v.vt == VT_LPWSTR) info.name = wideToUtf8(v.pwszVal);
+                if (SUCCEEDED(props->GetValue(kFriendlyName, &v)) && v.vt == VT_LPWSTR) info.name = wideToUtf8(v.pwszVal);
                 PropVariantClear(&v);
                 props->Release();
             }
