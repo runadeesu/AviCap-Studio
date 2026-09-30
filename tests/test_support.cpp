@@ -44,7 +44,20 @@ std::filesystem::path makeTempDir(const std::string& name) {
 
 std::filesystem::path testMediaDir() {
     if (auto env = getEnv("AVICAP_TEST_MEDIA")) return pathFromUtf8(*env);
+#if defined(AVICAP_TEST_MEDIA_DIR)
+    std::error_code ec;
+    auto p = pathFromUtf8(AVICAP_TEST_MEDIA_DIR);
+    if (std::filesystem::exists(p / "av_1080p30.mp4", ec)) return p;
+#endif
     return {};
+}
+
+std::string testMedia(const std::string& name) {
+    auto dir = testMediaDir();
+    if (dir.empty()) return {};
+    auto p = dir / pathFromUtf8(name);
+    std::error_code ec;
+    return std::filesystem::exists(p, ec) ? pathToUtf8(p) : std::string();
 }
 
 }  // namespace avc::test
