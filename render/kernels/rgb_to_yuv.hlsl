@@ -1,6 +1,7 @@
 // Export conversion of the final frame to one YUV plane (8-bit targets).
 // t0: frame (premultiplied, composited over opaque background)
-// P(0): x plane (0 Y, 1 U, 2 V, 3 interleaved UV), y full range
+// P(0): x plane (0 Y, 1 U, 2 V, 3 interleaved UV), y full range, z output scale
+//       (1 for 8-bit / MSB-aligned targets, 1023/65535 for 10-bit LSB-aligned R16)
 // P(1): Kr, Kg, Kb
 #include "common.hlsli"
 
@@ -21,6 +22,10 @@ float4 kernel_main(KERNEL_CTX) {
         u = u + 0.5f;
         v = v + 0.5f;
     }
+    float sc = P(0).z > 0.0f ? P(0).z : 1.0f;
+    y = y * sc;
+    u = u * sc;
+    v = v * sc;
     int plane = (int)P(0).x;
     if (plane == 0) return float4(y, y, y, 1.0f);
     if (plane == 1) return float4(u, u, u, 1.0f);

@@ -1,1 +1,3 @@
-# Module 'encode' - sources are added as the module is implemented.
+avicap_add_module(encode
+    SOURCES encoder.cpp
+    DEPS AviCap::media)

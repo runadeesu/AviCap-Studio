@@ -224,7 +224,11 @@ struct KernelContext {
 namespace avc::hlsl {
 // Context of the kernel invocation running on this thread; lets helper
 // functions sample textures like global HLSL resources do.
-inline thread_local const KernelContext* tls_ctx = nullptr;
+#if defined(__GNUC__) && !defined(_WIN32)
+extern thread_local const KernelContext* tls_ctx __attribute__((tls_model("initial-exec")));
+#else
+extern thread_local const KernelContext* tls_ctx;
+#endif
 }  // namespace avc::hlsl
 
 // Kernel-facing macros (CPU flavour). The HLSL prelude defines the same names.

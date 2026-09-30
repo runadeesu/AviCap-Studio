@@ -115,6 +115,10 @@ AVC_KERNEL_END
 #pragma GCC diagnostic pop
 #endif
 
+namespace avc::hlsl {
+constinit thread_local const KernelContext* tls_ctx = nullptr;
+}  // namespace avc::hlsl
+
 namespace avc::gpu {
 
 namespace {
