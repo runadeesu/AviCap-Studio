@@ -1,0 +1,23 @@
+AviCap Studio
+=============
+Copyright (c) AviCap Studio contributors.
+
+AviCap Studio processes your media locally. Nothing is uploaded unless you
+explicitly enable a cloud feature, and analytics are opt-in.
+
+This distribution includes the following third-party components:
+
+  FFmpeg (libavcodec, libavformat, libavutil, libswscale, libswresample,
+          libavfilter)                          LGPL-2.1-or-later (dynamic DLLs)
+  dav1d AV1 decoder (built into FFmpeg)         BSD-2-Clause
+  zlib (built into FFmpeg)                      zlib License
+  Intel oneVPL dispatcher (built into FFmpeg)   MIT
+  NVIDIA nv-codec-headers / AMD AMF headers     MIT
+  Dear ImGui                                    MIT
+  nlohmann/json                                 MIT
+  stb_truetype / stb_image / stb_image_write    MIT or Public Domain (Unlicense)
+  MinGW-w64 runtime (winpthreads, libgcc,
+          libstdc++ linked statically)          MIT / GCC Runtime Library Exception
+
+Full license texts are in this "licenses" folder. See FFMPEG-SOURCE.txt for
+how to obtain the FFmpeg source code.

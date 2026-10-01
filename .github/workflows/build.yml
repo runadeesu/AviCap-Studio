@@ -1,0 +1,73 @@
+# CI: native Windows build with MSVC (+ installer / portable zip artifacts) and
+# a Linux build that runs the full test suite with generated test media.
+name: build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-msvc:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}\tools\vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}\build\vcpkg-archives
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: build/vcpkg-archives
+          key: vcpkg-msvc-${{ hashFiles('vcpkg.json') }}-v1
+
+      - name: Bootstrap vcpkg (pinned release)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force build/vcpkg-archives | Out-Null
+          git clone --branch 2026.07.29 --depth 1 https://github.com/microsoft/vcpkg.git tools/vcpkg
+          ./tools/vcpkg/bootstrap-vcpkg.bat -disableMetrics
+
+      - name: Build, test and package
+        shell: cmd
+        run: build_release.bat
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AviCapStudio-windows-msvc
+          path: |
+            release/AviCapStudio-Setup.exe
+            release/AviCap-Studio-Windows-Portable.zip
+            release/SHA256SUMS.txt
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build cmake pkg-config ffmpeg \
+            libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev libavfilter-dev \
+            fonts-dejavu-core
+      - name: Configure
+        run: cmake -S . -B build/linux -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DAVICAP_WERROR=OFF
+      - name: Build
+        run: cmake --build build/linux
+      - name: Generate test media
+        run: bash tools/make_test_media.sh build/test_media
+      - name: Test
+        run: ctest --test-dir build/linux -E stress --output-on-failure

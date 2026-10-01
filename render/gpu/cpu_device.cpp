@@ -17,10 +17,15 @@
 
 // ---- kernels compiled as C++ ------------------------------------------------------
 #if defined(__GNUC__)
+#if defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4189 4505)  // unused locals / functions in shared kernel code
+#endif
 #endif
 
 #define AVC_KERNEL_NS(name) namespace avc::gpu::cpuk::name { using namespace ::avc::hlsl;
@@ -112,7 +117,11 @@ AVC_KERNEL_NS(transition)
 AVC_KERNEL_END
 
 #if defined(__GNUC__)
+#if defined(__GNUC__)
 #pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
 #endif
 
 namespace avc::hlsl {

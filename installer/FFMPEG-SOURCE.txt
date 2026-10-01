@@ -1,0 +1,19 @@
+FFmpeg in this distribution
+===========================
+License: GNU Lesser General Public License 2.1 or later (see the FFmpeg
+license file in this folder). FFmpeg is built WITHOUT --enable-gpl and
+WITHOUT --enable-nonfree and is linked dynamically (avcodec / avformat /
+avutil / swscale / swresample / avfilter DLLs), so you can replace those DLLs
+with your own compatible build.
+
+Build recipes (exact versions and configure options) are part of the
+AviCap Studio source repository:
+  - MinGW cross build: tools/deps/build_deps_mingw.sh
+      FFmpeg n8.1.3 with zlib 1.3.1, dav1d 1.5.1, nv-codec-headers n13.0.19.0,
+      AMF headers v1.5.3, libvpl v2.17.0 (all from their official repositories)
+  - MSVC build: vcpkg.json (vcpkg 2026.07.29 "ffmpeg" port, LGPL features only)
+
+The corresponding FFmpeg source code is available from
+https://github.com/FFmpeg/FFmpeg (tag n8.1.3) and https://ffmpeg.org/.
+On request the maintainers of this distribution provide a copy of the exact
+source used, for at least three years from the date of the release.
