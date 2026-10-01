@@ -55,6 +55,9 @@ const char* formRow(const char* label, float labelWidth = 0.0f);
 void tooltip(const char* text);  // hover tooltip (respects the tooltip setting)
 void setTooltipsEnabled(bool on);
 void helpMarker(const char* text);
+// Dimmed hint text that wraps to the available width (Japanese has no spaces,
+// so long hints must wrap instead of being clipped).
+void hintText(const char* text);
 
 // Time display in the configured style ("timecode" / "frames" / "seconds").
 void setTimeStyle(const std::string& style);

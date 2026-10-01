@@ -223,14 +223,14 @@ void ViewerPanel::drawTransport(App& app) {
 void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
     ImGui::BeginChild("##welcome", size, ImGuiChildFlags_None);
     const float fs = ImGui::GetFontSize();
-    const float colW = std::min(size.x - 32.0f, fs * 34.0f);
+    const float colW = std::min(size.x - 32.0f, fs * 44.0f);
     const float x0 = std::max(16.0f, (size.x - colW) * 0.5f);
     ImGui::SetCursorPos(ImVec2(x0, std::max(12.0f, size.y * 0.08f)));
     ImGui::BeginGroup();
     ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.7f);
     ImGui::TextUnformatted(tr("Welcome to AviCap Studio"));
     ImGui::PopFont();
-    ImGui::TextDisabled("%s", tr("Let's start editing. Everything stays on this PC."));
+    hintText(tr("Let's start editing. Everything stays on this PC."));
     ImGui::Spacing();
     ImGui::Spacing();
     const float bw = (colW - 16.0f) / 3.0f, bh = ImGui::GetFrameHeight() * 2.4f;
@@ -260,7 +260,23 @@ void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
         "4. Add effects and color from the Effects / Color panels; press Space to preview.",
         "5. Export with Ctrl+M (presets for YouTube, TikTok, Shorts...).",
     };
-    for (const char* st : steps) ImGui::TextWrapped("%s", tr(st));
+    if (ImGui::BeginTable("##steps", 2, ImGuiTableFlags_None, ImVec2(colW, 0))) {
+        ImGui::TableSetupColumn("n", ImGuiTableColumnFlags_WidthFixed, fs * 1.6f);
+        ImGui::TableSetupColumn("t", ImGuiTableColumnFlags_WidthStretch);
+        int n = 1;
+        for (const char* st : steps) {
+            std::string text = tr(st);
+            // Drop the leading "N. " (the number gets its own column).
+            const size_t dot = text.find('.');
+            if (dot != std::string::npos && dot < 3) text = text.substr(std::min(text.size(), text.find_first_not_of(' ', dot + 1)));
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextColored(ImVec4(0.45f, 0.65f, 1.0f, 1.0f), "%d", n++);
+            ImGui::TableNextColumn();
+            ImGui::TextWrapped("%s", text.c_str());
+        }
+        ImGui::EndTable();
+    }
     const auto& recent = app.settings().general.recentProjects;
     if (!recent.empty()) {
         ImGui::Spacing();

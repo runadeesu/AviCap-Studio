@@ -140,7 +140,7 @@ void DiagnosticsPanel::draw(App& app) {
         uint64_t total = 0;
         for (const auto& u : usage) total += u.bytes;
         ImGui::Text("%s: %s (%s %.0f GB)", tr("Total"), mb(total).c_str(), tr("limit"), app.settings().cache.maxGB);
-        ImGui::TextDisabled("%s", tr("The cache only holds derived data (thumbnails, waveforms, proxies, shaders). Original media is never stored here."));
+        hintText(tr("The cache only holds derived data (thumbnails, waveforms, proxies, shaders). Original media is never stored here."));
         for (const auto& u : usage) {
             ImGui::PushID(u.category.c_str());
             ImGui::BulletText("%s: %s (%llu %s)", u.category.c_str(), mb(u.bytes).c_str(), static_cast<unsigned long long>(u.files), tr("files"));

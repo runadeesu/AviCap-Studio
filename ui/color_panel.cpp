@@ -226,7 +226,7 @@ void ColorPanel::draw(App& app) {
                     }
                     ImGui::EndGroup();
                 }
-                ImGui::TextDisabled("%s", tr("Drag the puck to tint; Shift for fine control; double-click to reset."));
+                hintText(tr("Drag the puck to tint; Shift for fine control; double-click to reset."));
                 if (ImGui::TreeNode(tr("Shadows / Midtones / Highlights"))) {
                     const fx::EffectDef* def = fx::EffectRegistry::instance().find("color.wheels");
                     for (const ParamDef& d : def->params) {
@@ -278,7 +278,7 @@ void ColorPanel::draw(App& app) {
                         return Status::ok();
                     }, EditOptions{"curve:" + std::to_string(eid) + key});
                 }
-                ImGui::TextDisabled("%s", tr("Click to add a point, drag to move, right-click to delete."));
+                hintText(tr("Click to add a point, drag to move, right-click to delete."));
                 const fx::EffectDef* def = fx::EffectRegistry::instance().find("color.curves");
                 for (const ParamDef& d : def->params) {
                     const ParamEdit ed = paramRow(d, e->params.find(d.id), local);

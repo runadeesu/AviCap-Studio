@@ -52,18 +52,21 @@ void MediaPanel::draw(App& app) {
     ImGui::SameLine(0, 2);
     if (iconButton("##importdir", Icon::Folder, tr("Import Folder..."), false, fh)) app.importFolderDialog();
     ImGui::SameLine(0, 8);
-    ImGui::SetNextItemWidth(std::max(80.0f, ImGui::GetContentRegionAvail().x - fh * 8.5f));
+    ImGui::SetNextItemWidth(std::max(80.0f, ImGui::GetContentRegionAvail().x));
     ImGui::InputTextWithHint("##search", tr("Search media"), search_, sizeof search_);
-    ImGui::SameLine(0, 4);
+    // Second row: filter, sort, view mode.
     const char* filters[] = {tr("All"), tr("Video"), tr("Audio"), tr("Images")};
-    ImGui::SetNextItemWidth(fh * 3.5f);
+    const float comboW = std::max(fh * 4.0f, (ImGui::GetContentRegionAvail().x - fh - 12) * 0.5f);
+    ImGui::SetNextItemWidth(comboW);
     ImGui::Combo("##filter", &filter_, filters, 4);
+    tooltip(tr("Type"));
+    ImGui::SameLine(0, 4);
+    const char* sorts[] = {tr("Name"), tr("Date Imported"), tr("Duration"), tr("Type")};
+    ImGui::SetNextItemWidth(comboW);
+    ImGui::Combo("##sort", &sort_, sorts, 4);
+    tooltip(tr("Sort"));
     ImGui::SameLine(0, 4);
     if (iconButton("##view", grid_ ? Icon::Image : Icon::Text, grid_ ? tr("List view") : tr("Grid view"), false, fh)) grid_ = !grid_;
-    ImGui::SameLine(0, 2);
-    const char* sorts[] = {tr("Name"), tr("Imported"), tr("Duration"), tr("Type")};
-    ImGui::SetNextItemWidth(fh * 3.0f);
-    ImGui::Combo("##sort", &sort_, sorts, 4);
 
     const size_t offline = app.offlineCount();
     if (offline > 0) {
@@ -104,7 +107,7 @@ void MediaPanel::draw(App& app) {
             if (ImGui::Button(tr("+ Import Media"), ImVec2(w, ImGui::GetFrameHeight() * 2.0f))) app.importDialog();
             ImGui::Spacing();
             ImGui::TextWrapped("%s", tr("Drop video, audio or image files here, or click + to import."));
-            ImGui::TextDisabled("%s", tr("Supported: MP4, MOV, MKV, WebM, AVI, MP3, WAV, AAC, FLAC, PNG, JPEG and more."));
+            hintText(tr("Supported: MP4, MOV, MKV, WebM, AVI, MP3, WAV, AAC, FLAC, PNG, JPEG and more."));
         } else {
             ImGui::TextWrapped("%s", tr("No media matches the filter."));
         }

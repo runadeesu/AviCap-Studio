@@ -165,7 +165,7 @@ void SettingsWindow::draw(App& app) {
             comboString(tr("Proxy resolution"), working_.proxy.preset, {{"360p", "360p"}, {"540p", "540p"}, {"720p", "720p"}, {"1080p", "1080p"}});
             rowSliderInt(tr("Create automatically above height (0 = never)"), &working_.proxy.autoCreateAboveHeight, 0, 4320);
             pathField(app, tr("Proxy folder (empty = cache)"), working_.proxy.location, true);
-            ImGui::TextDisabled("%s", tr("Exports always use the original media."));
+            hintText(tr("Exports always use the original media."));
             ImGui::EndTabItem();
         }
         if (tab("Cache")) {

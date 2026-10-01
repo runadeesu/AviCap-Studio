@@ -105,7 +105,7 @@ void ExportPanel::drawSettings(App& app) {
     }
     if (cur && !cur->description.empty()) {
         ImGui::SetCursorPosX(labelW);
-        ImGui::TextDisabled("%s", tr(cur->description.c_str()));
+        hintText(tr(cur->description.c_str()));
     }
 
     // Output

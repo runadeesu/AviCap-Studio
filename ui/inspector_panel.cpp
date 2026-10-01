@@ -118,7 +118,7 @@ void InspectorPanel::drawSequence(App& app, const Sequence& seq) {
         ImGui::Text("%s: %s - %s", tr("In/Out"), formatTime(seq.workArea->start, seq.frameRate).c_str(),
                     formatTime(seq.workArea->end(), seq.frameRate).c_str());
     ImGui::Spacing();
-    ImGui::TextDisabled("%s", tr("Select a clip in the timeline to edit its properties."));
+    hintText(tr("Select a clip in the timeline to edit its properties."));
 }
 
 void InspectorPanel::drawParamSet(App& app, const Clip& clip, const std::vector<ParamDef>& defs, int which, const char* groupFilter) {

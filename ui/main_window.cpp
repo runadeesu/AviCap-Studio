@@ -593,7 +593,7 @@ void MainWindow::newProjectDialog() {
     ImGui::InputText(formRow(tr("Name")), newName_, sizeof newName_);
     ImGui::Combo(formRow(tr("Format")), &newPreset_, [](void*, int i) { return tr(fmts[i].name); }, nullptr, 6);
     ImGui::Combo(formRow(tr("Frame Rate")), &newRate_, [](void*, int i) { return rates[i].first; }, nullptr, 8);
-    ImGui::TextDisabled("%s", tr("The first video you import into an empty sequence can also set the format."));
+    hintText(tr("The first video you import into an empty sequence can also set the format."));
     if (ImGui::Button(tr("Create"), ImVec2(ImGui::GetFontSize() * 7, 0))) {
         ProjectSettings s;
         s.width = fmts[newPreset_].w;
@@ -731,7 +731,7 @@ void MainWindow::aboutDialog() {
     ImGui::TextDisabled("%s  |  %s", AVICAP_BUILD_DATE, AVICAP_COMPILER);
     ImGui::Spacing();
     ImGui::TextUnformatted(tr("Video editor for Windows. Local first: your media never leaves this PC unless you choose a cloud feature."));
-    ImGui::TextDisabled("%s", tr("Uses FFmpeg (LGPL), Dear ImGui, nlohmann/json, stb, doctest. See THIRD_PARTY_LICENSES.md."));
+    hintText(tr("Uses FFmpeg (LGPL), Dear ImGui, nlohmann/json, stb, doctest. See THIRD_PARTY_LICENSES.md."));
     ImGui::Text("%s: %s", tr("Render device"), app_.device().info().adapter.c_str());
     if (ImGui::Button(tr("Close")) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
         ui.showAbout = false;
