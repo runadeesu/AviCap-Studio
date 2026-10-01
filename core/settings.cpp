@@ -82,7 +82,9 @@ std::string AppSettings::toJson() const {
                     {"allowNetwork", privacy.allowNetwork}};
     j["sounds"] = {{"libraryFolders", sounds.libraryFolders},
                    {"favorites", sounds.favorites},
-                   {"recent", sounds.recent}};
+                   {"recent", sounds.recent},
+                   {"rootFolder", sounds.rootFolder},
+                   {"watchDownloads", sounds.watchDownloads}};
     return j.dump(2);
 }
 
@@ -175,6 +177,8 @@ AppSettings AppSettings::fromJson(const std::string& text) {
         get(*it, "libraryFolders", s.sounds.libraryFolders);
         get(*it, "favorites", s.sounds.favorites);
         get(*it, "recent", s.sounds.recent);
+        get(*it, "rootFolder", s.sounds.rootFolder);
+        get(*it, "watchDownloads", s.sounds.watchDownloads);
     }
     // Sanitize ranges.
     s.general.autosaveIntervalSec = std::clamp(s.general.autosaveIntervalSec, 10, 3600);

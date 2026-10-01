@@ -115,6 +115,7 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
     cacheStore_ = std::make_unique<cache::CacheStore>(cacheRoot);
     assets_ = std::make_unique<AssetService>(*cacheStore_, *device_, [this] { wake(); });
     ai_ = std::make_unique<AiService>(*this, cacheStore_.get());
+    sounds_ = std::make_unique<SoundLibrary>(*this);
     const fs::path proxyDir = settings_.proxy.location.empty() ? cacheRoot / "proxies" : pathFromUtf8(settings_.proxy.location);
     proxies_ = std::make_unique<proxy::ProxyManager>(proxyDir);
     std::string worker = opt.workerExecutable;
@@ -202,6 +203,7 @@ App::~App() {
     prepareExit();
     posts_->close();
     ai_.reset();
+    sounds_.reset();
     // Background jobs reference engines owned here: let them finish first.
     Jobs::io().waitIdle();
     playback_.reset();
@@ -246,6 +248,8 @@ bool App::animating() const {
     if (playing() || importing_ > 0 || saving_ > 0 || loading_) return true;
     if (exports_ && exports_->busy()) return true;
     if (assets_ && assets_->pendingJobs() > 0) return true;
+    if (ai_ && ai_->busy()) return true;
+    if (sounds_ && (sounds_->scanning() || sounds_->previewer().playing())) return true;
     return !proxyRequested_.empty();
 }
 
@@ -270,6 +274,8 @@ void App::tick() {
             AVC_ERROR("app", "posted task failed: {}", e.what());
         }
     }
+
+    sounds_->previewer().tick();
 
     const bool isPlaying = playback_->playing();
     if (isPlaying) playhead_ = playback_->position();
@@ -567,8 +573,12 @@ void App::addAudioDialog(bool music) {
     for (const auto& e : supportedAudioExtensions()) patterns += (patterns.empty() ? "*" : ";*") + e;
     auto files = dialogs_->openFiles(music ? tr("Add Background Music") : tr("Add Sound Effect"),
                                      {{tr("Audio files"), patterns}, {tr("All files"), "*.*"}}, !music);
+    addSoundFiles(std::move(files), music);
+}
+
+void App::addSoundFiles(std::vector<std::string> files, bool music, std::optional<Time> when) {
     if (files.empty()) return;
-    const Time at = snapToFrame(playhead());
+    const Time at = snapToFrame(when ? *when : playhead());
     importFiles(std::move(files), [this, music, at](const std::vector<MediaId>& ids) {
         Time t = at;
         for (MediaId id : ids) {

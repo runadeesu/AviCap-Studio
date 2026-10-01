@@ -152,18 +152,47 @@ std::filesystem::path cacheDir() { return ensureDir(appDataDir() / "Cache"); }
 std::filesystem::path autosaveDir() { return ensureDir(appDataDir() / "Autosave"); }
 std::filesystem::path settingsFile() { return appDataDir() / "settings.json"; }
 
-std::filesystem::path userDocumentsDir() {
+namespace {
 #if defined(_WIN32)
+std::filesystem::path knownFolder(REFKNOWNFOLDERID id) {
     PWSTR path = nullptr;
     std::filesystem::path r;
-    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &path))) {
+    if (SUCCEEDED(SHGetKnownFolderPath(id, 0, nullptr, &path))) {
         r = std::filesystem::path(path);
         CoTaskMemFree(path);
     }
     return r;
+}
+#else
+std::filesystem::path homeSubdir(const char* name) {
+    if (auto home = getEnv("HOME")) return pathFromUtf8(*home) / name;
+    return std::filesystem::temp_directory_path();
+}
+#endif
+}  // namespace
+
+std::filesystem::path userDocumentsDir() {
+#if defined(_WIN32)
+    return knownFolder(FOLDERID_Documents);
 #else
     if (auto home = getEnv("HOME")) return pathFromUtf8(*home);
     return std::filesystem::temp_directory_path();
+#endif
+}
+
+std::filesystem::path userMusicDir() {
+#if defined(_WIN32)
+    return knownFolder(FOLDERID_Music);
+#else
+    return homeSubdir("Music");
+#endif
+}
+
+std::filesystem::path userDownloadsDir() {
+#if defined(_WIN32)
+    return knownFolder(FOLDERID_Downloads);
+#else
+    return homeSubdir("Downloads");
 #endif
 }
 

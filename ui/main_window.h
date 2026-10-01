@@ -63,6 +63,7 @@ private:
     MarkersPanel markers_;
     DiagnosticsPanel diagnostics_;
     AiPanel ai_;
+    SoundsPanel sounds_;
     SettingsWindow settings_;
 
     bool layoutBuilt_ = false;

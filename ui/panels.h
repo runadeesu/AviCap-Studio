@@ -20,6 +20,7 @@ namespace avc::ui {
 inline constexpr const char* kPayloadMedia = "AVC_MEDIA";            // MediaId
 inline constexpr const char* kPayloadEffect = "AVC_EFFECT";          // char[] effect id
 inline constexpr const char* kPayloadTransition = "AVC_TRANSITION";  // char[] transition id
+inline constexpr const char* kPayloadSoundFile = "AVC_SOUND";        // char[]: 'b'|'s' (bgm/sfx) + UTF-8 path
 
 class TimelinePanel {
 public:
@@ -250,6 +251,24 @@ private:
     void drawAnalysis(App& app);
     char prompt_[2048] = {};
     float sensitivity_ = 0.5f;
+};
+
+class SoundsPanel {
+public:
+    void draw(App& app);
+
+private:
+    void drawLibrary(App& app);
+    void drawWebSounds(App& app);
+    void soundRow(App& app, const SoundItem& s, int index);
+    bool scanned_ = false;
+    char search_[128] = {};
+    int filter_ = 0;  // 0 all, 1 bgm, 2 sfx, 3 favourites, 4 recent
+    char webSearch_[128] = {};
+    char pageUrl_[512] = {};
+    std::vector<SoundItem> downloads_;
+    double lastDownloadScan_ = -100;
+    std::string importMessage_;
 };
 
 class SettingsWindow {

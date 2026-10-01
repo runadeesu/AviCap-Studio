@@ -166,6 +166,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Inspector", right);
         dock("###Effects", right);
         dock("###AI", right);
+        dock("###Sounds", right);
         dock("###Timeline", bottom);
         dock("###Mixer", bottom);
         dock("###Export", right);
@@ -183,6 +184,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Viewer", center);
         dock("###Inspector", right);
         dock("###AI", right);
+        dock("###Sounds", right);
         dock("###Markers", right);
         dock("###Color", right);
         dock("###Scopes", left);
@@ -199,6 +201,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Export", right);
         dock("###Inspector", right);
         dock("###AI", right);
+        dock("###Sounds", right);
         dock("###Media", center);
         dock("###Effects", center);
         dock("###Scopes", center);
@@ -214,6 +217,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.34f, &right, &center);
         ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.12f, &mixer, &timeline);
         dock("###Media", left);
+        dock("###Sounds", left);
         dock("###Effects", left);
         dock("###Scopes", left);
         dock("###Viewer", center);
@@ -250,6 +254,7 @@ void MainWindow::panelWindows() {
     panel(ui.showDiagnostics, "Diagnostics", "Diagnostics", [&] { diagnostics_.draw(app_); });
     panel(ui.showMixer, "Audio Mixer", "Mixer", [&] { mixer_.draw(app_); });
     panel(ui.showAi, "AI Tools", "AI", [&] { ai_.draw(app_); });
+    panel(ui.showSounds, "Sounds", "Sounds", [&] { sounds_.draw(app_); });
     panel(ui.showTimeline, "Timeline", "Timeline", [&] { timeline_.draw(app_); },
           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 }
@@ -366,7 +371,7 @@ void MainWindow::menuBar() {
             {"view.inspector", &ui.showInspector}, {"view.effects", &ui.showEffects}, {"view.color", &ui.showColor},
             {"view.mixer", &ui.showMixer},     {"view.scopes", &ui.showScopes},   {"view.export", &ui.showExport},
             {"view.markers", &ui.showMarkers}, {"view.history", &ui.showHistory}, {"view.diagnostics", &ui.showDiagnostics},
-            {"view.ai", &ui.showAi}};
+            {"view.ai", &ui.showAi}, {"view.sounds", &ui.showSounds}};
         for (const auto& [id, flag] : views) menuItem(id, *flag);
         ImGui::Separator();
         for (const char* id : {"workspace.edit", "workspace.color", "workspace.audio", "workspace.export"}) {

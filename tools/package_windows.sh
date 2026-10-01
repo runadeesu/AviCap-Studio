@@ -40,7 +40,7 @@ cmake -S "$ROOT" -B "$BUILD" -G Ninja \
   -DCMAKE_TOOLCHAIN_FILE="$ROOT/cmake/toolchains/mingw-w64-x86_64.cmake" \
   -DCMAKE_BUILD_TYPE=Release -DAVICAP_BUILD_APP=ON -DAVICAP_BUILD_TESTS=OFF \
   -DAVICAP_MINGW_PREFIX="$PREFIX" > /dev/null
-cmake --build "$BUILD" --target AviCapStudio avicap-cli -j"$(nproc)"
+cmake --build "$BUILD" --target AviCapStudio avicap_cli -j"$(nproc)"
 
 # ---------------------------------------------------------------- stage
 rm -rf "$STAGE"
@@ -128,12 +128,18 @@ fi
 # ---------------------------------------------------------------- smoke test
 if [ $SMOKE -eq 1 ]; then
   APP_PREFIX="${APP_WINEPREFIX:-/root/.wine-avicap}"
+  # The app is 64-bit: use the 64-bit loader explicitly (with wine32 installed
+  # for Inno Setup, plain "wine" starts the 32-bit loader).
+  APP_WINE="${APP_WINE:-wine}"
+  [ -x /usr/lib/wine/wine64 ] && APP_WINE=/usr/lib/wine/wine64
+  [ -n "${DISPLAY:-}" ] || echo "WARNING: DISPLAY is not set; the smoke test needs an X server (e.g. Xvfb)" >&2
+  wpath() { WINEPREFIX="$APP_PREFIX" WINELOADER="$APP_WINE" WINEDEBUG=-all "$APP_WINE" winepath.exe -w "$1" 2>/dev/null | tr -d '\r'; }
   out="$ROOT/build/release-smoke"
   rm -rf "$out" && mkdir -p "$out"
   media=()
-  [ -f "$ROOT/build/test_media/av_1080p30.mp4" ] && media=(--media "$(WINEPREFIX="$APP_PREFIX" winepath -w "$ROOT/build/test_media/av_1080p30.mp4")")
-  WINEPREFIX="$APP_PREFIX" WINEDEBUG=-all LANG=C.UTF-8 timeout 600 wine "$RELEASE/AviCapStudio.exe" \
-    --self-test "$(WINEPREFIX="$APP_PREFIX" winepath -w "$out")" "${media[@]}" 2>/dev/null
+  [ -f "$ROOT/build/test_media/av_1080p30.mp4" ] && media=(--media "$(wpath "$ROOT/build/test_media/av_1080p30.mp4")")
+  WINEPREFIX="$APP_PREFIX" WINELOADER="$APP_WINE" WINEDEBUG=-all LANG=C.UTF-8 timeout 600 "$APP_WINE" "$RELEASE/AviCapStudio.exe" \
+    --self-test "$(wpath "$out")" "${media[@]}" 2>/dev/null
   python3 -c "import json,sys; j=json.load(open(sys.argv[1])); print('smoke test:', 'PASSED' if j['ok'] else 'FAILED'); sys.exit(0 if j['ok'] else 1)" "$out/selftest.json"
 fi
 

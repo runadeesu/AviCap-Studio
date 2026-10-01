@@ -104,6 +104,8 @@ struct SoundsSettings {
     std::vector<std::string> libraryFolders;
     std::vector<std::string> favorites;  // sound ids
     std::vector<std::string> recent;
+    std::string rootFolder;       // library root for imports (empty = <Music>/AviCap Sounds)
+    bool watchDownloads = false;  // opt-in: list new audio files in Downloads while the Sounds panel is open
 };
 
 struct AppSettings {

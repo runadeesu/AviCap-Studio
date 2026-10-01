@@ -385,3 +385,85 @@ TEST_CASE("AI tools: silence removal and plan preview through the app") {
     CHECK_FALSE(st.error.empty());
     host.frames(2);
 }
+
+TEST_CASE("sound library: scan, preview, legal import and timeline placement") {
+    const std::string sfx = test::testMedia("beats_120bpm.wav");
+    const std::string bgm = test::testMedia("mono_44k.mp3");
+    if (sfx.empty() || bgm.empty()) {
+        MESSAGE("test media missing");
+        return;
+    }
+    namespace fs = std::filesystem;
+    auto dir = test::makeTempDir("ui_sounds");
+    const fs::path root = dir / "library";
+    const fs::path extra = dir / "my sounds";
+    fs::create_directories(root / "BGM");
+    fs::create_directories(extra);
+    fs::copy_file(pathFromUtf8(bgm), root / "BGM" / "theme.mp3");
+    fs::copy_file(pathFromUtf8(sfx), extra / "クリック.wav");
+
+    AppOptions opt;
+    opt.dataDir = dir / "data";
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    app.settings().sounds.rootFolder = pathToUtf8(root);
+    app.settings().sounds.libraryFolders = {pathToUtf8(extra)};
+    HeadlessHost host(app, ImVec2(1400, 850));
+    app.ui().showSounds = true;
+
+    SoundLibrary& lib = app.sounds();
+    lib.rescan();
+    REQUIRE(runUntil(host, [&] { return !lib.scanning() && lib.items().size() == 2; }));
+    const SoundItem* theme = nullptr;
+    const SoundItem* click = nullptr;
+    for (const auto& s : lib.items()) (s.name == "theme" ? theme : click) = &s;
+    REQUIRE(theme);
+    REQUIRE(click);
+    CHECK(theme->category == "bgm");  // from the folder name
+    CHECK(click->category == "sfx");  // short file
+    CHECK(click->durationSec == doctest::Approx(8.0).epsilon(0.05));
+    const std::string themePath = theme->path, clickPath = click->path;  // items() is replaced by rescans
+
+    // Preview plays on its own output (null device in headless mode) and ends by itself.
+    lib.previewer().play(clickPath, 0.5);
+    CHECK(lib.previewer().playing());
+    REQUIRE(runUntil(host, [&] { return !lib.previewer().playing(); }, 10.0));
+    CHECK(lib.previewer().lastError().empty());
+
+    // Favourites and recent are remembered in the settings.
+    lib.setFavorite(clickPath, true);
+    CHECK(lib.isFavorite(clickPath));
+
+    // Importing a downloaded file copies it; the original stays untouched.
+    const fs::path downloaded = dir / "downloaded-sound.wav";
+    fs::copy_file(pathFromUtf8(sfx), downloaded);
+    const auto sizeBefore = fs::file_size(downloaded);
+    auto imported = lib.importFile(pathToUtf8(downloaded), false, "Myinstants", "https://www.myinstants.com/en/instant/example/");
+    REQUIRE(imported);
+    CHECK(fs::exists(downloaded));
+    CHECK(fs::file_size(downloaded) == sizeBefore);
+    CHECK(pathFromUtf8(*imported).parent_path() == root / "SFX" / "Myinstants");
+    CHECK_FALSE(lib.importFile(pathToUtf8(dir / "missing.wav"), false, {}, {}));
+    lib.rescan();
+    REQUIRE(runUntil(host, [&] { return !lib.scanning() && lib.items().size() == 3; }));
+    const SoundItem* im = lib.find(*imported);
+    REQUIRE(im);
+    CHECK(im->source == "Myinstants");
+    CHECK(im->sourceUrl.find("myinstants.com") != std::string::npos);
+
+    // Search in the browser is a plain URL; nothing is fetched by the app.
+    CHECK(SoundLibrary::myinstantsUrl("") == "https://www.myinstants.com/");
+    CHECK(SoundLibrary::myinstantsUrl("拍手 sound") == "https://www.myinstants.com/en/search/?name=%E6%8B%8D%E6%89%8B%20sound");
+
+    // Adding to the timeline: music goes to A2, effects to A3 (tracks are created).
+    app.addSoundFiles({themePath}, true, Time::fromSeconds(0));
+    REQUIRE(runUntil(host, [&] { return app.sequence()->clipCount() == 1; }));
+    app.addSoundFiles({clickPath}, false, Time::fromSeconds(2));
+    REQUIRE(runUntil(host, [&] { return app.sequence()->clipCount() == 2; }));
+    const auto audio = app.sequence()->audioTrackIndices();
+    REQUIRE(audio.size() >= 3);
+    CHECK(app.sequence()->tracks[static_cast<size_t>(audio[1])]->clips.size() == 1);
+    CHECK(app.sequence()->tracks[static_cast<size_t>(audio[2])]->clips.size() == 1);
+    host.frames(3);  // the panel draws the library
+}

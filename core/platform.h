@@ -32,6 +32,8 @@ std::filesystem::path cacheDir();     // <root>/Cache (never contains original m
 std::filesystem::path autosaveDir();  // <root>/Autosave
 std::filesystem::path settingsFile(); // <root>/settings.json
 std::filesystem::path userDocumentsDir();
+std::filesystem::path userMusicDir();
+std::filesystem::path userDownloadsDir();
 std::filesystem::path tempDir();
 
 struct MemoryStatus {

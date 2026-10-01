@@ -21,6 +21,8 @@ set(AVICAP_UI_SOURCES
     preview.cpp
     scopes_panel.cpp
     settings_window.cpp
+    sound_library.cpp
+    sounds_panel.cpp
     theme.cpp
     timeline_panel.cpp
     viewer_panel.cpp

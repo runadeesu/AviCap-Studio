@@ -1193,6 +1193,22 @@ void TimelinePanel::handleDrops(App& app, const Sequence& seq) {
                 }
             }
         }
+    } else if (const ImGuiPayload* ps = ImGui::AcceptDragDropPayload(kPayloadSoundFile, flags)) {
+        const char* data = static_cast<const char*>(ps->Data);
+        if (auto target = dropTargetAt(app, io.MousePos)) {
+            Time at = target->time;
+            if (app.snapping) {
+                auto pts = collectSnapPoints(seq, app.playhead(), {});
+                if (auto r = snapTime(pts, at, snapThreshold()); r.snapped) at = r.time;
+            }
+            snapLine_ = at;
+            if (ps->IsDelivery()) {
+                snapLine_.reset();
+                const std::string path(data + 1);
+                app.sounds().markUsed(path);
+                app.addSoundFiles({path}, data[0] == 'b', at);
+            }
+        }
     } else if (const ImGuiPayload* p2 = ImGui::AcceptDragDropPayload(kPayloadEffect, flags)) {
         const std::string effectId(static_cast<const char*>(p2->Data));
         const Hit hit = hitTest(seq, io.MousePos);

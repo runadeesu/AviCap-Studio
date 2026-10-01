@@ -31,6 +31,7 @@
 #include "ui/assets.h"
 #include "ui/commands.h"
 #include "ui/preview.h"
+#include "ui/sound_library.h"
 
 namespace avc::ui {
 
@@ -139,6 +140,7 @@ public:
     IDialogs& dialogs() { return *dialogs_; }
     UiState& ui() { return ui_; }
     AiService& ai() { return *ai_; }
+    SoundLibrary& sounds() { return *sounds_; }
     [[nodiscard]] const std::string& projectPath() const { return projectPath_; }
 
     // AI plan preview: shown instead of the document in the viewer, timeline
@@ -182,6 +184,9 @@ public:
     // Imports audio files and places them at the playhead on a free audio
     // track: music goes to A2 and below, sound effects to A3 and below.
     void addAudioDialog(bool music);
+    // Imports audio files and places them at `at` (default: playhead): music
+    // on A2 and later (back to back), sound effects on A3 and later.
+    void addSoundFiles(std::vector<std::string> files, bool music, std::optional<Time> at = std::nullopt);
     void setWorkspace(const std::string& name);
 
     // ---------------------------------------------------------------- media
@@ -305,6 +310,7 @@ private:
     CommandRegistry commands_;
     UiState ui_;
     std::unique_ptr<AiService> ai_;
+    std::unique_ptr<SoundLibrary> sounds_;
     mutable std::mutex planPreviewMutex_;
     ProjectPtr planPreview_;
 
