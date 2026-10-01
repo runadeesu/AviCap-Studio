@@ -248,6 +248,7 @@ const std::unordered_map<std::string_view, const char*>& japanese() {
         {"Privacy", "プライバシー"},
         {"Language", "言語"},
         {"Clean Cache Now", "今すぐキャッシュを削除"},
+#include "core/i18n_ja.inc"
     };
     return table;
 }
@@ -274,6 +275,11 @@ const char* tr(const char* english) {
         if (it != t.end()) return it->second;
     }
     return english;
+}
+
+bool hasTranslation(std::string_view english, Language lang) {
+    if (lang == Language::English) return true;
+    return japanese().count(english) != 0;
 }
 
 }  // namespace avc

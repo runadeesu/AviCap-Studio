@@ -90,6 +90,9 @@ struct UiState {
     bool unsavedPrompt = false;
     bool exitConfirmed = false;
     std::string settingsTab;
+    std::string workspace = "edit";  // edit | color | audio | export
+    std::string applyWorkspace;      // requested layout change (rebuilt by the main window)
+    bool showShortcutSheet = false;
 };
 
 struct AppOptions {
@@ -169,6 +172,10 @@ public:
     void saveProjectAsDialog(std::function<void(bool)> done = {});
     void importDialog();
     void importFolderDialog();
+    // Imports audio files and places them at the playhead on a free audio
+    // track: music goes to A2 and below, sound effects to A3 and below.
+    void addAudioDialog(bool music);
+    void setWorkspace(const std::string& name);
 
     // ---------------------------------------------------------------- media
     void importFiles(std::vector<std::string> paths, std::function<void(const std::vector<MediaId>&)> done = {});
@@ -183,6 +190,9 @@ public:
     Result<std::vector<ClipId>> addMediaToTimeline(MediaId id, Time at, int videoTrackIndex, int audioTrackIndex, bool insert);
     // Inserts at the playhead on the target tracks and moves the playhead after it.
     void appendMediaAtPlayhead(MediaId id);
+    // Places audio-only media on the first free audio track at or below the
+    // given family position (a new track is added when all are busy).
+    Result<ClipId> placeAudio(MediaId id, Time at, int firstAudioTrack);
     // Absolute track indices for the targeted family positions (-1 if absent).
     [[nodiscard]] int targetVideoTrackIndex() const;
     [[nodiscard]] int targetAudioTrackIndex() const;
@@ -263,6 +273,7 @@ public:
 
 private:
     void registerCommands();
+    static ProjectPtr makeLocalizedProject(const std::string& name, const ProjectSettings& s);
     void attachDocument(ProjectPtr p, const std::string& path, bool clean);
     void updatePreviewRequest();
     void checkResources();

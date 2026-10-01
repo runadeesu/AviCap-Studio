@@ -7,7 +7,8 @@ set(AVICAP_TEST_MEDIA_DIR "${PROJECT_SOURCE_DIR}/build/test_media" CACHE PATH
     "Generated test media (tools/make_test_media.sh)")
 target_compile_definitions(avicap_tests PRIVATE
     AVICAP_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
-    AVICAP_TEST_MEDIA_DIR="${AVICAP_TEST_MEDIA_DIR}")
+    AVICAP_TEST_MEDIA_DIR="${AVICAP_TEST_MEDIA_DIR}"
+    AVICAP_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 
 # Generates the synthetic media used by decode/analysis/export tests.
 find_program(AVICAP_FFMPEG_CLI ffmpeg)

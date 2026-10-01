@@ -205,6 +205,61 @@ void drawIcon(ImDrawList* dl, Icon icon, ImVec2 c, float s, ImU32 color) {
         dl->AddLine(c + ImVec2(-h * 0.6f, 0), c + ImVec2(-h * 0.15f, h * 0.5f), color, t * 1.8f);
         dl->AddLine(c + ImVec2(-h * 0.15f, h * 0.5f), c + ImVec2(h * 0.65f, -h * 0.5f), color, t * 1.8f);
         break;
+    case Icon::Save:
+        dl->AddRect(c + ImVec2(-h * 0.7f, -h * 0.7f), c + ImVec2(h * 0.7f, h * 0.7f), color, 2.0f, t * 1.2f);
+        dl->AddRectFilled(c + ImVec2(-h * 0.4f, -h * 0.7f), c + ImVec2(h * 0.35f, -h * 0.2f), color);
+        dl->AddRectFilled(c + ImVec2(-h * 0.45f, h * 0.15f), c + ImVec2(h * 0.45f, h * 0.7f), color, 1.0f);
+        break;
+    case Icon::Undo:
+    case Icon::Redo: {
+        const float dir = icon == Icon::Undo ? 1.0f : -1.0f;
+        dl->PathArcTo(c + ImVec2(0, h * 0.15f), h * 0.5f, icon == Icon::Undo ? -2.6f : -0.55f, icon == Icon::Undo ? 0.6f : 2.6f + 0.0f, 14);
+        dl->PathStroke(color, t * 1.4f);
+        const ImVec2 tip = c + ImVec2(-dir * h * 0.42f, -h * 0.2f);
+        dl->AddTriangleFilled(tip + ImVec2(-dir * h * 0.32f, -h * 0.05f), tip + ImVec2(dir * h * 0.12f, -h * 0.38f),
+                              tip + ImVec2(dir * h * 0.15f, h * 0.2f), color);
+        break;
+    }
+    case Icon::Export:
+        dl->AddRect(c + ImVec2(-h * 0.7f, -h * 0.25f), c + ImVec2(h * 0.7f, h * 0.7f), color, 2.0f, t * 1.2f);
+        dl->AddLine(c + ImVec2(0, h * 0.35f), c + ImVec2(0, -h * 0.7f), color, t * 1.6f);
+        dl->AddTriangleFilled(c + ImVec2(-h * 0.35f, -h * 0.4f), c + ImVec2(0, -h * 0.85f), c + ImVec2(h * 0.35f, -h * 0.4f), color);
+        break;
+    case Icon::Subtitle:
+        dl->AddRect(c + ImVec2(-h * 0.8f, -h * 0.55f), c + ImVec2(h * 0.8f, h * 0.55f), color, 2.0f, t * 1.2f);
+        dl->AddLine(c + ImVec2(-h * 0.5f, h * 0.05f), c + ImVec2(h * 0.1f, h * 0.05f), color, t * 1.5f);
+        dl->AddLine(c + ImVec2(h * 0.25f, h * 0.05f), c + ImVec2(h * 0.5f, h * 0.05f), color, t * 1.5f);
+        dl->AddLine(c + ImVec2(-h * 0.5f, h * 0.3f), c + ImVec2(-h * 0.2f, h * 0.3f), color, t * 1.5f);
+        dl->AddLine(c + ImVec2(-h * 0.05f, h * 0.3f), c + ImVec2(h * 0.5f, h * 0.3f), color, t * 1.5f);
+        break;
+    case Icon::Effects:
+        dl->AddLine(c + ImVec2(-h * 0.7f, h * 0.7f), c + ImVec2(h * 0.2f, -h * 0.2f), color, t * 2.0f);
+        for (int i = 0; i < 4; ++i) {
+            const float a = static_cast<float>(i) * IM_PI / 2.0f;
+            const ImVec2 sc = c + ImVec2(h * 0.4f, -h * 0.4f);
+            dl->AddLine(sc, sc + ImVec2(std::cos(a), std::sin(a)) * (h * 0.32f), color, t * 1.3f);
+        }
+        break;
+    case Icon::Palette:
+        dl->AddCircle(c, h * 0.72f, color, 20, t * 1.3f);
+        dl->AddCircleFilled(c + ImVec2(-h * 0.3f, -h * 0.25f), h * 0.15f, IM_COL32(240, 80, 80, 255));
+        dl->AddCircleFilled(c + ImVec2(h * 0.15f, -h * 0.38f), h * 0.15f, IM_COL32(90, 210, 110, 255));
+        dl->AddCircleFilled(c + ImVec2(h * 0.38f, h * 0.05f), h * 0.15f, IM_COL32(90, 140, 255, 255));
+        dl->AddCircleFilled(c + ImVec2(-h * 0.2f, h * 0.3f), h * 0.15f, IM_COL32(240, 210, 70, 255));
+        break;
+    case Icon::Help:
+        dl->AddCircle(c, h * 0.72f, color, 20, t * 1.3f);
+        dl->PathArcTo(c + ImVec2(0, -h * 0.18f), h * 0.25f, -IM_PI, 0.5f, 10);
+        dl->PathStroke(color, t * 1.4f);
+        dl->AddLine(c + ImVec2(h * 0.05f, h * 0.0f), c + ImVec2(0, h * 0.22f), color, t * 1.4f);
+        dl->AddCircleFilled(c + ImVec2(0, h * 0.45f), t * 0.9f, color);
+        break;
+    case Icon::Sound:
+        dl->AddRectFilled(c + ImVec2(-h * 0.7f, -h * 0.2f), c + ImVec2(-h * 0.45f, h * 0.2f), color);
+        dl->AddRectFilled(c + ImVec2(-h * 0.35f, -h * 0.55f), c + ImVec2(-h * 0.1f, h * 0.55f), color);
+        dl->AddRectFilled(c + ImVec2(0.0f, -h * 0.35f), c + ImVec2(h * 0.25f, h * 0.35f), color);
+        dl->AddRectFilled(c + ImVec2(h * 0.35f, -h * 0.7f), c + ImVec2(h * 0.6f, h * 0.7f), color);
+        break;
     case Icon::Warning:
         dl->AddTriangleFilled(c + ImVec2(0, -h * 0.8f), c + ImVec2(h * 0.85f, h * 0.65f), c + ImVec2(-h * 0.85f, h * 0.65f), color);
         dl->AddLine(c + ImVec2(0, -h * 0.3f), c + ImVec2(0, h * 0.2f), IM_COL32(0, 0, 0, 255), t * 1.5f);
@@ -240,6 +295,45 @@ bool textToggle(const char* label, bool* value, const char* tip, ImU32 onColor) 
     if (pressed) *value = !*value;
     if (tip) tooltip(tip);
     return pressed;
+}
+
+bool iconTextButton(const char* id, Icon icon, const char* label, const char* tip, bool active, bool enabled) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float h = ImGui::GetFrameHeight();
+    const float iconW = h * 0.9f;
+    const ImVec2 textSize = ImGui::CalcTextSize(label, nullptr, true);
+    const ImVec2 size(iconW + textSize.x + st.FramePadding.x * 2.0f + 2.0f, h);
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::BeginDisabled(!enabled);
+    const bool pressed = ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 bg = active ? ImGui::GetColorU32(ImGuiCol_ButtonActive)
+                            : (hovered && enabled) ? ImGui::GetColorU32(ImGuiCol_ButtonHovered) : ImGui::GetColorU32(ImGuiCol_Button, 0.55f);
+    dl->AddRectFilled(pos, pos + size, bg, st.FrameRounding);
+    const ImU32 fg = ImGui::GetColorU32(enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled);
+    drawIcon(dl, icon, pos + ImVec2(st.FramePadding.x + iconW * 0.45f, h * 0.5f), h * 0.55f, fg);
+    dl->AddText(pos + ImVec2(st.FramePadding.x + iconW, (h - textSize.y) * 0.5f), fg, label, ImGui::FindRenderedTextEnd(label));
+    ImGui::EndDisabled();
+    if (tip) tooltip(tip);
+    return pressed && enabled;
+}
+
+void formLabel(const char* label, float labelWidth) {
+    if (labelWidth <= 0) labelWidth = ImGui::GetFontSize() * 9.0f;
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label);
+    ImGui::SameLine(labelWidth);
+    ImGui::SetNextItemWidth(-1);
+}
+
+const char* formRow(const char* label, float labelWidth) {
+    static thread_local std::string ids[4];
+    static thread_local int next = 0;
+    formLabel(label, labelWidth);
+    std::string& id = ids[next++ & 3];
+    id = std::string("##") + label;
+    return id.c_str();
 }
 
 void setTooltipsEnabled(bool on) { g_tooltips = on; }

@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "core/i18n.h"
+#include "core/strings.h"
 #include "render/compositor.h"
 #include "ui/edit_helpers.h"
 #include "ui/panels.h"
@@ -196,8 +197,8 @@ void ViewerPanel::drawTransport(App& app) {
     }
     tooltip(tr("Preview quality (Auto lowers resolution during playback when needed)"));
     ImGui::SameLine(0, 4);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.0f);
-    const char* zooms[] = {"Fit", "25%", "50%", "75%", "100%", "150%", "200%", "400%"};
+    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.5f);
+    const char* zooms[] = {tr("Fit"), "25%", "50%", "75%", "100%", "150%", "200%", "400%"};
     const int zv[] = {0, 25, 50, 75, 100, 150, 200, 400};
     int zi = 0;
     for (int i = 0; i < 8; ++i)
@@ -219,7 +220,74 @@ void ViewerPanel::drawTransport(App& app) {
     ImGui::TextDisabled("/ %s", formatTime(seq->duration(), seq->frameRate).c_str());
 }
 
+void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
+    ImGui::BeginChild("##welcome", size, ImGuiChildFlags_None);
+    const float fs = ImGui::GetFontSize();
+    const float colW = std::min(size.x - 32.0f, fs * 34.0f);
+    const float x0 = std::max(16.0f, (size.x - colW) * 0.5f);
+    ImGui::SetCursorPos(ImVec2(x0, std::max(12.0f, size.y * 0.08f)));
+    ImGui::BeginGroup();
+    ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.7f);
+    ImGui::TextUnformatted(tr("Welcome to AviCap Studio"));
+    ImGui::PopFont();
+    ImGui::TextDisabled("%s", tr("Let's start editing. Everything stays on this PC."));
+    ImGui::Spacing();
+    ImGui::Spacing();
+    const float bw = (colW - 16.0f) / 3.0f, bh = ImGui::GetFrameHeight() * 2.4f;
+    auto big = [&](const char* id, Icon icon, const char* label, const char* hint) {
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        const bool pressed = ImGui::Button(id, ImVec2(bw, bh));
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        drawIcon(dl, icon, p + ImVec2(bh * 0.45f, bh * 0.5f), bh * 0.42f, ImGui::GetColorU32(ImGuiCol_Text));
+        dl->AddText(p + ImVec2(bh * 0.85f, bh * 0.5f - fs * 1.1f), ImGui::GetColorU32(ImGuiCol_Text), label);
+        dl->PushClipRect(p, p + ImVec2(bw - 4, bh), true);
+        dl->AddText(p + ImVec2(bh * 0.85f, bh * 0.5f + fs * 0.1f), ImGui::GetColorU32(ImGuiCol_TextDisabled), hint);
+        dl->PopClipRect();
+        return pressed;
+    };
+    if (big("##w_import", Icon::Plus, tr("Import Media"), "Ctrl+I")) app.importDialog();
+    ImGui::SameLine(0, 8);
+    if (big("##w_new", Icon::Film, tr("New Project"), "Ctrl+N")) app.commands().run("file.new");
+    ImGui::SameLine(0, 8);
+    if (big("##w_open", Icon::Folder, tr("Open Project"), "Ctrl+O")) app.openProjectDialog();
+    ImGui::Spacing();
+    ImGui::Spacing();
+    ImGui::SeparatorText(tr("How to edit"));
+    const char* steps[] = {
+        "1. Import video, music and images (or drag files into the window).",
+        "2. Drag clips from the Media panel to the timeline (double-click adds at the playhead).",
+        "3. Cut with Ctrl+K, add text (Ctrl+T), subtitles, BGM and sound effects from the toolbar.",
+        "4. Add effects and color from the Effects / Color panels; press Space to preview.",
+        "5. Export with Ctrl+M (presets for YouTube, TikTok, Shorts...).",
+    };
+    for (const char* st : steps) ImGui::TextWrapped("%s", tr(st));
+    const auto& recent = app.settings().general.recentProjects;
+    if (!recent.empty()) {
+        ImGui::Spacing();
+        ImGui::SeparatorText(tr("Recent Projects"));
+        int shown = 0;
+        for (const auto& r : recent) {
+            if (++shown > 6) break;
+            const std::string name = pathToUtf8(pathFromUtf8(r).filename());
+            ImGui::PushID(r.c_str());
+            if (ImGui::Selectable(name.c_str())) {
+                const std::string path = r;
+                app.guardUnsaved([&app, path] { app.openProject(path); });
+            }
+            tooltip(r.c_str());
+            ImGui::PopID();
+        }
+    }
+    ImGui::EndGroup();
+    ImGui::EndChild();
+}
+
 void ViewerPanel::draw(App& app) {
+    const Sequence* seqW = app.sequence();
+    if (seqW && seqW->clipCount() == 0 && app.project().media.empty() && !app.busyLoading()) {
+        drawWelcome(app, ImGui::GetContentRegionAvail());
+        return;
+    }
     const float transportH = ImGui::GetFrameHeightWithSpacing() + 6;
     ImVec2 avail = ImGui::GetContentRegionAvail();
     avail.y = std::max(20.0f, avail.y - transportH);

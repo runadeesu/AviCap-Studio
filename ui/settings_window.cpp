@@ -13,12 +13,32 @@ namespace avc::ui {
 
 namespace {
 
+float labelWidth() { return ImGui::GetFontSize() * 15.0f; }
+
+std::string hidden(const char* label) { return std::string("##") + label; }
+
+bool rowSliderInt(const char* label, int* v, int lo, int hi, const char* fmt = "%d") {
+    formLabel(label, labelWidth());
+    return ImGui::SliderInt(hidden(label).c_str(), v, lo, hi, fmt);
+}
+
+bool rowSliderFloat(const char* label, float* v, float lo, float hi, const char* fmt = "%.2f") {
+    formLabel(label, labelWidth());
+    return ImGui::SliderFloat(hidden(label).c_str(), v, lo, hi, fmt);
+}
+
+bool rowInputText(const char* label, char* buf, size_t size) {
+    formLabel(label, labelWidth());
+    return ImGui::InputText(hidden(label).c_str(), buf, size);
+}
+
 bool comboString(const char* label, std::string& value, const std::vector<std::pair<std::string, const char*>>& options) {
     const char* preview = value.c_str();
     for (const auto& [id, name] : options)
         if (id == value) preview = name;
     bool changed = false;
-    if (ImGui::BeginCombo(label, preview)) {
+    formLabel(label, labelWidth());
+    if (ImGui::BeginCombo(hidden(label).c_str(), preview)) {
         for (const auto& [id, name] : options)
             if (ImGui::Selectable(name, id == value)) {
                 value = id;
@@ -33,9 +53,10 @@ bool pathField(App& app, const char* label, std::string& value, bool folder) {
     char buf[1024];
     std::snprintf(buf, sizeof buf, "%s", value.c_str());
     ImGui::PushID(label);
-    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() * 12);
+    formLabel(label, labelWidth());
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() * 6);
     bool changed = false;
-    if (ImGui::InputText(label, buf, sizeof buf)) {
+    if (ImGui::InputText("##path", buf, sizeof buf)) {
         value = buf;
         changed = true;
     }
@@ -93,14 +114,14 @@ void SettingsWindow::draw(App& app) {
         };
         if (tab("General")) {
             comboString(tr("Language"), working_.general.language, {{"auto", tr("System default")}, {"en", "English"}, {"ja", "日本語"}});
-            ImGui::SliderInt(tr("Autosave snapshot interval (s)"), &working_.general.autosaveIntervalSec, 15, 600);
+            rowSliderInt(tr("Autosave snapshot interval (s)"), &working_.general.autosaveIntervalSec, 15, 600);
             helpMarker(tr("Every edit is journaled immediately; this controls how often a full snapshot is written."));
             pathField(app, tr("Default project folder"), working_.general.defaultProjectDir, true);
             ImGui::Checkbox(tr("Reopen the last project at startup"), &working_.general.reopenLastProject);
             ImGui::EndTabItem();
         }
         if (tab("Interface")) {
-            ImGui::SliderFloat(tr("UI scale (0 = Windows setting)"), &working_.ui.uiScale, 0.0f, 3.0f, "%.2f");
+            rowSliderFloat(tr("UI scale (0 = Windows setting)"), &working_.ui.uiScale, 0.0f, 3.0f, "%.2f");
             comboString(tr("Time display"), working_.ui.timecodeStyle,
                         {{"timecode", tr("Timecode")}, {"frames", tr("Frames")}, {"seconds", tr("Seconds")}});
             ImGui::Checkbox(tr("Show tooltips"), &working_.ui.showTooltips);
@@ -113,14 +134,14 @@ void SettingsWindow::draw(App& app) {
             ImGui::Checkbox(tr("Adaptive quality during playback"), &working_.playback.adaptiveQuality);
             ImGui::Checkbox(tr("Audio scrubbing"), &working_.playback.audioScrubbing);
             ImGui::Checkbox(tr("Loop playback"), &working_.playback.loop);
-            ImGui::SliderInt(tr("Maximum shuttle speed (J/L)"), &working_.playback.shuttleMaxSpeed, 2, 32);
+            rowSliderInt(tr("Maximum shuttle speed (J/L)"), &working_.playback.shuttleMaxSpeed, 2, 32);
             ImGui::EndTabItem();
         }
         if (tab("Performance")) {
             ImGui::Checkbox(tr("Hardware video decoding (restart required)"), &working_.performance.hardwareDecode);
-            ImGui::SliderInt(tr("Frame cache (MB)"), &working_.performance.frameCacheMB, 128, 16384);
-            ImGui::SliderInt(tr("Maximum open decoders"), &working_.performance.maxOpenDecoders, 4, 64);
-            ImGui::SliderInt(tr("Decode threads (0 = auto)"), &working_.performance.decodeThreads, 0, 32);
+            rowSliderInt(tr("Frame cache (MB)"), &working_.performance.frameCacheMB, 128, 16384);
+            rowSliderInt(tr("Maximum open decoders"), &working_.performance.maxOpenDecoders, 4, 64);
+            rowSliderInt(tr("Decode threads (0 = auto)"), &working_.performance.decodeThreads, 0, 32);
             ImGui::EndTabItem();
         }
         if (tab("GPU")) {
@@ -128,7 +149,7 @@ void SettingsWindow::draw(App& app) {
                         {{"auto", tr("Automatic")}, {"d3d11", "Direct3D 11"}, {"warp", tr("Software (WARP)")}});
             char adapter[128];
             std::snprintf(adapter, sizeof adapter, "%s", working_.gpu.adapter.c_str());
-            if (ImGui::InputText(tr("Preferred adapter (name contains)"), adapter, sizeof adapter)) working_.gpu.adapter = adapter;
+            if (rowInputText(tr("Preferred adapter (name contains)"), adapter, sizeof adapter)) working_.gpu.adapter = adapter;
             ImGui::TextDisabled("%s: %s", tr("Current"), app.device().info().adapter.c_str());
             ImGui::EndTabItem();
         }
@@ -136,21 +157,21 @@ void SettingsWindow::draw(App& app) {
             std::vector<std::pair<std::string, const char*>> opts{{"", tr("System default")}};
             for (const auto& d : devices_) opts.emplace_back(d.id, d.name.c_str());
             comboString(tr("Output device (restart required)"), working_.audio.outputDevice, opts);
-            ImGui::SliderInt(tr("Buffer (ms)"), &working_.audio.bufferMs, 10, 200);
+            rowSliderInt(tr("Buffer (ms)"), &working_.audio.bufferMs, 10, 200);
             ImGui::EndTabItem();
         }
         if (tab("Proxies")) {
             ImGui::Checkbox(tr("Use proxies for playback when available"), &working_.proxy.useProxies);
             comboString(tr("Proxy resolution"), working_.proxy.preset, {{"360p", "360p"}, {"540p", "540p"}, {"720p", "720p"}, {"1080p", "1080p"}});
-            ImGui::SliderInt(tr("Create automatically above height (0 = never)"), &working_.proxy.autoCreateAboveHeight, 0, 4320);
+            rowSliderInt(tr("Create automatically above height (0 = never)"), &working_.proxy.autoCreateAboveHeight, 0, 4320);
             pathField(app, tr("Proxy folder (empty = cache)"), working_.proxy.location, true);
             ImGui::TextDisabled("%s", tr("Exports always use the original media."));
             ImGui::EndTabItem();
         }
         if (tab("Cache")) {
             float gb = static_cast<float>(working_.cache.maxGB);
-            if (ImGui::SliderFloat(tr("Maximum cache size (GB)"), &gb, 1.0f, 500.0f, "%.0f")) working_.cache.maxGB = gb;
-            ImGui::SliderInt(tr("Delete entries older than (days)"), &working_.cache.maxAgeDays, 1, 365);
+            if (rowSliderFloat(tr("Maximum cache size (GB)"), &gb, 1.0f, 500.0f, "%.0f")) working_.cache.maxGB = gb;
+            rowSliderInt(tr("Delete entries older than (days)"), &working_.cache.maxAgeDays, 1, 365);
             ImGui::Checkbox(tr("Clean up automatically at startup"), &working_.cache.autoCleanup);
             pathField(app, tr("Cache folder (restart required)"), working_.cache.location, true);
             ImGui::EndTabItem();
@@ -163,7 +184,7 @@ void SettingsWindow::draw(App& app) {
             comboString(tr("Assistant provider"), working_.ai.assistantProvider, {{"local", tr("Local rules (offline)")}, {"anthropic", "Claude (Anthropic API)"}});
             char model[96];
             std::snprintf(model, sizeof model, "%s", working_.ai.anthropicModel.c_str());
-            if (ImGui::InputText(tr("Claude model"), model, sizeof model)) working_.ai.anthropicModel = model;
+            if (rowInputText(tr("Claude model"), model, sizeof model)) working_.ai.anthropicModel = model;
             pathField(app, tr("Whisper model file (ggml)"), working_.ai.whisperModelPath, false);
             comboString(tr("Caption language"), working_.ai.captionLanguage, {{"auto", tr("Auto detect")}, {"ja", "日本語"}, {"en", "English"}});
             ImGui::Separator();

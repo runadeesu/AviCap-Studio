@@ -251,7 +251,9 @@ void ColorPanel::draw(App& app) {
                                         IM_COL32(90, 140, 255, 255), IM_COL32(220, 160, 255, 255), IM_COL32(255, 200, 90, 255),
                                         IM_COL32(200, 200, 200, 255), IM_COL32(150, 220, 220, 255)};
                 ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9);
-                ImGui::Combo("##chan", &curveChannel_, chanLabels, 8);
+                const char* chanShown[8];
+                for (int i = 0; i < 8; ++i) chanShown[i] = tr(chanLabels[i]);
+                ImGui::Combo("##chan", &curveChannel_, chanShown, 8);
                 ImGui::SameLine();
                 if (ImGui::SmallButton(tr("Reset Curve"))) {
                     const ClipId cid = clip->id;

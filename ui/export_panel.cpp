@@ -173,7 +173,7 @@ void ExportPanel::drawSettings(App& app) {
     const int w = settings_.width > 0 ? settings_.width : seq->width;
     const int h = settings_.height > 0 ? settings_.height : seq->height;
     char resLabel[64];
-    std::snprintf(resLabel, sizeof resLabel, "%dx%d%s", w, h, settings_.width == 0 ? " (sequence)" : "");
+    std::snprintf(resLabel, sizeof resLabel, "%dx%d%s", w, h, settings_.width == 0 ? tr("(sequence)") : "");
     if (ImGui::BeginCombo("##res", resLabel)) {
         struct R {
             const char* name;
@@ -183,7 +183,7 @@ void ExportPanel::drawSettings(App& app) {
                           {"1920x1080 (Full HD)", 1920, 1080}, {"1280x720 (HD)", 1280, 720},   {"1080x1920 (Vertical)", 1080, 1920},
                           {"1080x1080 (Square)", 1080, 1080},  {"854x480", 854, 480}};
         for (const R& r : list)
-            if (ImGui::Selectable(r.name, settings_.width == r.w && settings_.height == r.h)) {
+            if (ImGui::Selectable(tr(r.name), settings_.width == r.w && settings_.height == r.h)) {
                 settings_.width = r.w;
                 settings_.height = r.h;
             }
@@ -196,7 +196,7 @@ void ExportPanel::drawSettings(App& app) {
                                                           {"25", {25, 1}},          {"29.97", {30000, 1001}},  {"30", {30, 1}},
                                                           {"50", {50, 1}},          {"59.94", {60000, 1001}},  {"60", {60, 1}}};
         for (const auto& [n, r] : rates)
-            if (ImGui::Selectable(n, settings_.frameRate == r)) settings_.frameRate = r;
+            if (ImGui::Selectable(tr(n), settings_.frameRate == r)) settings_.frameRate = r;
         ImGui::EndCombo();
     }
     label(tr("Rate Control"));

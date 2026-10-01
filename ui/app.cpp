@@ -102,6 +102,10 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
     setLanguage(languageFromSetting(settings_.general.language));
     snapping = settings_.ui.snapping;
     loopPlayback = settings_.playback.loop;
+    {
+        const std::string& ws = settings_.ui.workspace;
+        ui_.workspace = (ws == "color" || ws == "audio" || ws == "export") ? ws : "edit";
+    }
 
     dialogs_ = opt.dialogs ? std::move(opt.dialogs) : std::make_unique<NullDialogs>();
     device_ = opt.device ? std::move(opt.device) : gpu::createCpuDevice();
@@ -137,7 +141,7 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
     preview_->frames().setProxyResolver([this](const MediaItem& m) { return proxyFor(m); });
     preview_->setOnFrame([this] { wake(); });
 
-    doc_ = std::make_unique<Document>(std::make_shared<Project>(makeProject(tr("Untitled"), ProjectSettings{})));
+    doc_ = std::make_unique<Document>(makeLocalizedProject(tr("Untitled"), ProjectSettings{}));
     doc_->setUndoLimit(1000);
     docListener_ = doc_->addListener([this](const ChangeEvent& ev) { onDocumentChanged(ev); });
 
@@ -450,8 +454,18 @@ void App::attachDocument(ProjectPtr p, const std::string& path, bool clean) {
     preview_->invalidate();
 }
 
+ProjectPtr App::makeLocalizedProject(const std::string& name, const ProjectSettings& s) {
+    Project p = makeProject(name.empty() ? tr("Untitled") : name, s);
+    for (auto& sp : p.sequences) {
+        auto seq = std::make_shared<Sequence>(*sp);
+        if (seq->name == "Sequence 1") seq->name = std::string(tr("Sequence")) + " 1";
+        sp = seq;
+    }
+    return std::make_shared<Project>(std::move(p));
+}
+
 void App::newProject(const std::string& name, const ProjectSettings& s) {
-    attachDocument(std::make_shared<Project>(makeProject(name.empty() ? tr("Untitled") : name, s)), "", true);
+    attachDocument(makeLocalizedProject(name, s), "", true);
     AVC_INFO("app", "new project '{}' {}x{} @ {}", project().name, s.width, s.height, s.frameRate.toString());
 }
 
@@ -542,6 +556,65 @@ void App::importDialog() {
         for (const auto& e : *list) patterns += (patterns.empty() ? "*" : ";*") + e;
     auto files = dialogs_->openFiles(tr("Import Media"), {{tr("Media files"), patterns}, {tr("All files"), "*.*"}}, true);
     if (!files.empty()) importFiles(std::move(files));
+}
+
+void App::addAudioDialog(bool music) {
+    std::string patterns;
+    for (const auto& e : supportedAudioExtensions()) patterns += (patterns.empty() ? "*" : ";*") + e;
+    auto files = dialogs_->openFiles(music ? tr("Add Background Music") : tr("Add Sound Effect"),
+                                     {{tr("Audio files"), patterns}, {tr("All files"), "*.*"}}, !music);
+    if (files.empty()) return;
+    const Time at = snapToFrame(playhead());
+    importFiles(std::move(files), [this, music, at](const std::vector<MediaId>& ids) {
+        Time t = at;
+        for (MediaId id : ids) {
+            auto r = placeAudio(id, t, music ? 1 : 2);
+            if (!r) continue;
+            if (const Clip* c = sequence()->clip(*r)) t = music ? c->end() : t;  // music plays back to back
+        }
+    });
+}
+
+Result<ClipId> App::placeAudio(MediaId id, Time at, int firstAudioTrack) {
+    const MediaItem* m = project().findMedia(id);
+    if (!m || !m->info.hasAudio()) return Result<ClipId>::error(tr("The file has no audio"));
+    const MediaItem media = *m;
+    ClipId created = kInvalidId;
+    const Status st = editSequence(firstAudioTrack <= 1 ? "Add Background Music" : "Add Sound Effect", [&](SequenceEditor& e) {
+        const Time dur = media.info.duration.ticks > 0 ? media.info.duration : Time::fromSeconds(1.0);
+        const TimeRange range{at, dur};
+        int track = -1;
+        auto fam = e.seq().audioTrackIndices();
+        for (size_t i = static_cast<size_t>(std::max(0, firstAudioTrack)); i < fam.size(); ++i) {
+            const Track& t = e.trackAt(fam[i]);
+            if (!t.locked && edit::rangeIsEmpty(t, range)) {
+                track = fam[i];
+                break;
+            }
+        }
+        while (track < 0) {
+            auto r = edit::addTrack(e, TrackKind::Audio);
+            if (!r) return r.status();
+            fam = e.seq().audioTrackIndices();
+            if (static_cast<int>(fam.size()) > firstAudioTrack) {
+                const int idx = e.seq().trackIndex(*r);
+                if (edit::rangeIsEmpty(e.trackAt(idx), range)) track = idx;
+            }
+        }
+        auto r = edit::addMediaClip(e, media, at, -1, track, edit::PlaceMode::Overwrite);
+        if (!r) return r.status();
+        if (!r->empty()) created = r->front();
+        return Status::ok();
+    });
+    if (!st) return st;
+    selection.clips = {created};
+    return created;
+}
+
+void App::setWorkspace(const std::string& name) {
+    ui_.workspace = name;
+    ui_.applyWorkspace = name;
+    settings_.ui.workspace = name;
 }
 
 void App::importFolderDialog() {
@@ -1274,7 +1347,7 @@ ClipId App::addSubtitleClip(const std::string& text, Time start, Time duration) 
         for (int i = 0; i < e.trackCount(); ++i)
             if (e.trackAt(i).kind == TrackKind::Subtitle && !e.trackAt(i).locked) track = i;
         if (track < 0) {
-            auto r = edit::addTrack(e, TrackKind::Subtitle, "Subtitles");
+            auto r = edit::addTrack(e, TrackKind::Subtitle, tr("Subtitles"));
             if (!r) return r.status();
             track = e.seq().trackIndex(*r);
         }
@@ -1340,7 +1413,7 @@ void App::applyEffectToClip(ClipId id, const std::string& effectId) {
                                                                         : tr("Video effects apply to video clips"));
         return;
     }
-    editSequence(std::string("Apply ") + def->name, [&](SequenceEditor& e) {
+    editSequence("Apply Effect", [&](SequenceEditor& e) {
         e.mutableClip(id).effects.push_back(fx::EffectRegistry::instance().instantiate(effectId));
         return Status::ok();
     });
@@ -1360,7 +1433,7 @@ void App::applyEffect(const std::string& effectId) {
                                                                         : tr("Select a video clip to apply this effect"));
         return;
     }
-    editSequence(std::string("Apply ") + def->name, [&](SequenceEditor& e) {
+    editSequence("Apply Effect", [&](SequenceEditor& e) {
         for (ClipId id : targets) e.mutableClip(id).effects.push_back(fx::EffectRegistry::instance().instantiate(effectId));
         return Status::ok();
     });

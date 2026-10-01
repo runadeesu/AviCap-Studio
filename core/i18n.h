@@ -16,5 +16,7 @@ Language languageFromSetting(std::string_view setting);
 
 // Returns a pointer valid for the process lifetime (safe for ImGui labels).
 const char* tr(const char* english);
+// Whether a translation exists (used by tests to catch untranslated UI text).
+bool hasTranslation(std::string_view english, Language lang = Language::Japanese);
 
 }  // namespace avc

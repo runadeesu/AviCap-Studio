@@ -213,6 +213,12 @@ void TimelinePanel::draw(App& app) {
         dl->AddRectFilled(ImVec2(x0, areaMin_.y), ImVec2(x1, areaMax_.y), IM_COL32(90, 140, 220, 18));
     }
     drawClips(app, *seq, dl);
+    if (seq->clipCount() == 0 && !preview_) {
+        const char* hint = tr("Drag media here from the Media panel (Ctrl+drop inserts). Double-click media to add it at the playhead.");
+        const ImVec2 ts = ImGui::CalcTextSize(hint);
+        const ImVec2 c((areaMin_.x + areaMax_.x) * 0.5f, (areaMin_.y + areaMax_.y) * 0.5f);
+        dl->AddText(ImVec2(std::max(areaMin_.x + 8, c.x - ts.x * 0.5f), c.y - ts.y * 0.5f), IM_COL32(150, 150, 165, 255), hint);
+    }
 
     // Marquee
     if (drag_.kind == DragKind::Marquee && drag_.moved) {
@@ -630,6 +636,16 @@ void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
         dl->AddLine(ImVec2(a.x, b.y), ImVec2(hmax.x, b.y), IM_COL32(20, 20, 22, 255));
         ImGui::PopID();
     }
+    // Add-track buttons below the last lane.
+    if (!lanes_.empty()) {
+        const float y = lanes_.back().y + lanes_.back().h + 6;
+        if (y + ImGui::GetFrameHeight() < areaMax_.y) {
+            ImGui::SetCursorScreenPos(ImVec2(hmin.x + 4, y));
+            if (ImGui::SmallButton(tr("+ Video Track"))) app.addTrack(TrackKind::Video);
+            ImGui::SameLine(0, 4);
+            if (ImGui::SmallButton(tr("+ Audio Track"))) app.addTrack(TrackKind::Audio);
+        }
+    }
     ImGui::PopClipRect();
 
     if (renameTrack_ >= 0) {
@@ -811,6 +827,21 @@ void TimelinePanel::handleLaneInput(App& app, const Sequence& seq) {
         } else if (hit.zone == Hit::Head || hit.zone == Hit::Tail) {
             ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
         }
+    }
+
+    // Hover information for clips.
+    if (hovered && drag_.kind == DragKind::None && hit.clip && app.tool != Tool::Razor &&
+        ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_NoSharedDelay) &&
+        !ImGui::IsPopupOpen("", ImGuiPopupFlags_AnyPopupId)) {
+        const Clip& c = *hit.clip;
+        ImGui::BeginTooltip();
+        ImGui::TextUnformatted(c.name.empty() ? tr(clipKindName(c.kind)) : c.name.c_str());
+        ImGui::TextDisabled("%s - %s  (%s)", formatTime(c.start, seq.frameRate).c_str(), formatTime(c.end(), seq.frameRate).c_str(),
+                            formatTime(c.duration, seq.frameRate).c_str());
+        if (c.speed != Rational{1, 1}) ImGui::TextDisabled("%s %.0f%%", tr("Speed"), c.speed.toDouble() * 100.0);
+        if (!c.effects.empty()) ImGui::TextDisabled("%s: %zu", tr("Effects"), c.effects.size());
+        ImGui::TextDisabled("%s", hit.zone == Hit::Body ? tr("Drag to move, right-click for more") : tr("Drag to trim (Ctrl: ripple)"));
+        ImGui::EndTooltip();
     }
 
     // Right click: context menus.

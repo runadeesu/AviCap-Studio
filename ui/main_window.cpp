@@ -37,6 +37,7 @@ void MainWindow::frame() {
         panelWindows();
     }
     settings_.draw(app_);
+    shortcutSheet();
     modals();
     commandPalette();
     notifications();
@@ -59,41 +60,169 @@ void MainWindow::dockspace() {
     ImGui::Begin("##AviCapRoot", nullptr, flags);
     ImGui::PopStyleVar(3);
     menuBar();
+    toolbar();
+    UiState& ui = app_.ui();
     const ImGuiID dockId = ImGui::GetID("AviCapDock");
-    if (!layoutBuilt_ || app_.ui().resetLayout) {
-        // Respect a saved layout unless the user asked for a reset.
-        if (app_.ui().resetLayout || !ImGui::DockBuilderGetNode(dockId) || ImGui::DockBuilderGetNode(dockId)->IsLeafNode())
-            buildDefaultLayout(dockId);
+    if (!layoutBuilt_ || ui.resetLayout || !ui.applyWorkspace.empty()) {
+        // Respect a saved layout unless the user asked for a reset or another workspace.
+        const bool force = ui.resetLayout || !ui.applyWorkspace.empty();
+        if (force || !ImGui::DockBuilderGetNode(dockId) || ImGui::DockBuilderGetNode(dockId)->IsLeafNode())
+            buildDefaultLayout(dockId, ui.applyWorkspace.empty() ? ui.workspace : ui.applyWorkspace);
         layoutBuilt_ = true;
-        app_.ui().resetLayout = false;
+        ui.resetLayout = false;
+        ui.applyWorkspace.clear();
     }
     ImGui::DockSpace(dockId, ImVec2(0, 0), ImGuiDockNodeFlags_None);
     ImGui::End();
     statusBar();
 }
 
-void MainWindow::buildDefaultLayout(ImGuiID dockId) {
+void MainWindow::toolbar() {
+    CommandRegistry& reg = app_.commands();
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
+    ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(6, 4));
+    auto button = [&](const char* action, Icon icon, const char* label) {
+        const Action* a = reg.find(action);
+        if (!a) return;
+        std::string tip = tr(a->label);
+        const std::string sc = reg.shortcutText(action);
+        if (!sc.empty()) tip += "  (" + sc + ")";
+        if (iconTextButton(action, icon, tr(label), tip.c_str(), false, reg.isEnabled(action))) reg.run(action);
+        ImGui::SameLine();
+    };
+    auto separator = [] {
+        ImGui::SameLine(0, 6);
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::GetWindowDrawList()->AddLine(p + ImVec2(0, 3), p + ImVec2(0, ImGui::GetFrameHeight() - 3), ImGui::GetColorU32(ImGuiCol_Separator));
+        ImGui::Dummy(ImVec2(1, ImGui::GetFrameHeight()));
+        ImGui::SameLine(0, 6);
+    };
+    button("file.import", Icon::Plus, "Import");
+    button("file.save", Icon::Save, "Save");
+    separator();
+    button("edit.undo", Icon::Undo, "Undo");
+    button("edit.redo", Icon::Redo, "Redo");
+    separator();
+    button("timeline.split", Icon::Razor, "Split");
+    button("edit.rippleDelete", Icon::Trash, "Ripple Delete");
+    separator();
+    button("timeline.addTitle", Icon::Text, "Text");
+    button("timeline.addSubtitle", Icon::Subtitle, "Subtitle");
+    button("file.addMusic", Icon::Music, "BGM");
+    button("file.addSfx", Icon::Sound, "Sound Effect");
+    separator();
+    if (iconTextButton("##fxpanel", Icon::Effects, tr("Effects"), tr("Show the effects browser"), app_.ui().showEffects)) {
+        app_.ui().showEffects = true;
+        ImGui::SetWindowFocus("###Effects");
+    }
+    ImGui::SameLine();
+    button("file.export", Icon::Export, "Export");
+
+    // Workspace switcher (right aligned).
+    struct W {
+        const char* id;
+        const char* label;
+        const char* action;
+    };
+    static const W ws[] = {{"edit", "Edit", "workspace.edit"}, {"color", "Color", "workspace.color"},
+                           {"audio", "Audio", "workspace.audio"}, {"export", "Export", "workspace.export"}};
+    float total = 0;
+    for (const W& w : ws) total += ImGui::CalcTextSize(tr(w.label)).x + ImGui::GetStyle().FramePadding.x * 2 + 4;
+    const float x = ImGui::GetWindowWidth() - total - 12;
+    if (x > ImGui::GetCursorPosX() + 20) {
+        ImGui::SameLine(x);
+        for (const W& w : ws) {
+            const bool active = app_.ui().workspace == w.id;
+            if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive));
+            if (ImGui::Button(tr(w.label))) app_.setWorkspace(w.id);
+            if (active) ImGui::PopStyleColor();
+            std::string tip = std::string(tr("Workspace")) + ": " + tr(w.label) + "  (" + reg.shortcutText(w.action) + ")";
+            tooltip(tip.c_str());
+            ImGui::SameLine();
+        }
+    }
+    ImGui::NewLine();
+    ImGui::PopStyleVar();
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2);
+}
+
+void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace) {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
+    UiState& ui = app_.ui();
     ImGui::DockBuilderRemoveNode(dockId);
     ImGui::DockBuilderAddNode(dockId, ImGuiDockNodeFlags_DockSpace);
     ImGui::DockBuilderSetNodeSize(dockId, vp->WorkSize);
     ImGuiID top, bottom, left, center, right, timeline, mixer;
-    ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.40f, &bottom, &top);
-    ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.24f, &left, &center);
-    ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.36f, &right, &center);
-    ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.14f, &mixer, &timeline);
-    ImGui::DockBuilderDockWindow("###Media", left);
-    ImGui::DockBuilderDockWindow("###Effects", left);
-    ImGui::DockBuilderDockWindow("###Scopes", left);
-    ImGui::DockBuilderDockWindow("###Viewer", center);
-    ImGui::DockBuilderDockWindow("###Inspector", right);
-    ImGui::DockBuilderDockWindow("###Color", right);
-    ImGui::DockBuilderDockWindow("###Export", right);
-    ImGui::DockBuilderDockWindow("###History", right);
-    ImGui::DockBuilderDockWindow("###Markers", right);
-    ImGui::DockBuilderDockWindow("###Diagnostics", right);
-    ImGui::DockBuilderDockWindow("###Timeline", timeline);
-    ImGui::DockBuilderDockWindow("###Mixer", mixer);
+    auto dock = [](const char* id, ImGuiID node) { ImGui::DockBuilderDockWindow(id, node); };
+    if (workspace == "color") {
+        ui.showColor = ui.showScopes = ui.showViewer = ui.showTimeline = true;
+        ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.30f, &bottom, &top);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.25f, &left, &center);
+        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.40f, &right, &center);
+        dock("###Scopes", left);
+        dock("###Media", left);
+        dock("###Viewer", center);
+        dock("###Color", right);
+        dock("###Inspector", right);
+        dock("###Effects", right);
+        dock("###Timeline", bottom);
+        dock("###Mixer", bottom);
+        dock("###Export", right);
+        dock("###History", right);
+        dock("###Markers", right);
+        dock("###Diagnostics", right);
+    } else if (workspace == "audio") {
+        ui.showMixer = ui.showTimeline = ui.showInspector = true;
+        ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.50f, &bottom, &top);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.25f, &left, &center);
+        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.45f, &right, &center);
+        ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.30f, &mixer, &timeline);
+        dock("###Media", left);
+        dock("###Effects", left);
+        dock("###Viewer", center);
+        dock("###Inspector", right);
+        dock("###Markers", right);
+        dock("###Color", right);
+        dock("###Scopes", left);
+        dock("###Timeline", timeline);
+        dock("###Mixer", mixer);
+        dock("###Export", right);
+        dock("###History", right);
+        dock("###Diagnostics", right);
+    } else if (workspace == "export") {
+        ui.showExport = ui.showViewer = ui.showTimeline = true;
+        ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.30f, &bottom, &top);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Right, 0.45f, &right, &center);
+        dock("###Viewer", center);
+        dock("###Export", right);
+        dock("###Inspector", right);
+        dock("###Media", center);
+        dock("###Effects", center);
+        dock("###Scopes", center);
+        dock("###Color", right);
+        dock("###Timeline", bottom);
+        dock("###Mixer", bottom);
+        dock("###History", right);
+        dock("###Markers", right);
+        dock("###Diagnostics", right);
+    } else {
+        ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.42f, &bottom, &top);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.24f, &left, &center);
+        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.34f, &right, &center);
+        ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.12f, &mixer, &timeline);
+        dock("###Media", left);
+        dock("###Effects", left);
+        dock("###Scopes", left);
+        dock("###Viewer", center);
+        dock("###Inspector", right);
+        dock("###Color", right);
+        dock("###Export", right);
+        dock("###History", right);
+        dock("###Markers", right);
+        dock("###Diagnostics", right);
+        dock("###Timeline", timeline);
+        dock("###Mixer", mixer);
+    }
     ImGui::DockBuilderFinish(dockId);
 }
 
@@ -154,6 +283,8 @@ void MainWindow::menuBar() {
         ImGui::Separator();
         menuItem("file.import");
         menuItem("file.importFolder");
+        menuItem("file.addMusic");
+        menuItem("file.addSfx");
         ImGui::Separator();
         menuItem("file.export");
         ImGui::Separator();
@@ -232,11 +363,17 @@ void MainWindow::menuBar() {
             {"view.markers", &ui.showMarkers}, {"view.history", &ui.showHistory}, {"view.diagnostics", &ui.showDiagnostics}};
         for (const auto& [id, flag] : views) menuItem(id, *flag);
         ImGui::Separator();
+        for (const char* id : {"workspace.edit", "workspace.color", "workspace.audio", "workspace.export"}) {
+            const std::string ws = std::string(id).substr(10);
+            menuItem(id, ui.workspace == ws);
+        }
+        ImGui::Separator();
         menuItem("view.commandPalette");
         menuItem("view.resetLayout");
         ImGui::EndMenu();
     }
     if (ImGui::BeginMenu(tr("Help"))) {
+        menuItem("help.shortcutSheet", ui.showShortcutSheet);
         menuItem("help.about");
         menuItem("help.logs");
         menuItem("help.dataFolder");
@@ -266,7 +403,21 @@ void MainWindow::statusBar() {
     ImGui::PopStyleVar(2);
     ImGui::AlignTextToFramePadding();
     std::string left = app_.statusText();
-    if (left.empty()) left = app_.projectPath().empty() ? std::string(tr("Project not saved yet")) : app_.projectPath();
+    if (left.empty()) {
+        // Context help for the active tool, so every gesture is discoverable.
+        switch (app_.tool) {
+        case Tool::Razor: left = tr("Razor: click a clip to split it. Shift+click splits all tracks. V returns to the selection tool."); break;
+        case Tool::Ripple: left = tr("Ripple edit: drag a clip edge; later clips move to close or open the gap."); break;
+        case Tool::Roll: left = tr("Rolling edit: drag the cut between two clips to move it without changing the total length."); break;
+        case Tool::Slip: left = tr("Slip: drag a clip to change which part of the source it shows."); break;
+        case Tool::Slide: left = tr("Slide: drag a clip between its neighbours; they shorten or lengthen to compensate."); break;
+        default:
+            left = app_.sequence() && app_.sequence()->clipCount() == 0
+                       ? tr("Start by importing media (Ctrl+I) or dragging files into the window. F1 shows all shortcuts.")
+                       : tr("Space: play/stop  |  Ctrl+K: split  |  drag edges to trim (Ctrl: ripple)  |  Alt: toggle snapping  |  F1: shortcuts");
+            break;
+        }
+    }
     ImGui::TextDisabled("%s", left.c_str());
     // Background work
     std::string mid;
@@ -287,10 +438,55 @@ void MainWindow::statusBar() {
     const auto f = app_.preview().latest();
     char right[160];
     std::snprintf(right, sizeof right, "%s%s  %dx%d  %.0f ms  |  %s", app_.stats.lowMemory ? "[!] " : "",
-                  app_.settings().proxy.useProxies ? "Proxy " : "", f.width, f.height, f.renderMs, app_.device().info().adapter.c_str());
+                  app_.settings().proxy.useProxies ? (std::string(tr("Proxy")) + " ").c_str() : "", f.width, f.height, f.renderMs, app_.device().info().adapter.c_str());
     const float rw = ImGui::CalcTextSize(right).x;
     ImGui::SameLine(ImGui::GetWindowWidth() - rw - 12);
     ImGui::TextDisabled("%s", right);
+    ImGui::End();
+}
+
+// ------------------------------------------------------------------ shortcut sheet
+
+void MainWindow::shortcutSheet() {
+    UiState& ui = app_.ui();
+    if (!ui.showShortcutSheet) return;
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * 34, ImGui::GetFontSize() * 30), ImGuiCond_FirstUseEver);
+    const std::string title = std::string(tr("Shortcut List")) + "###shortcutsheet";
+    if (!ImGui::Begin(title.c_str(), &ui.showShortcutSheet, ImGuiWindowFlags_NoDocking)) {
+        ImGui::End();
+        return;
+    }
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - ImGui::GetFontSize() * 9);
+    ImGui::InputTextWithHint("##sheetfilter", tr("Search"), sheetFilter_, sizeof sheetFilter_);
+    ImGui::SameLine();
+    if (ImGui::Button(tr("Customize..."))) {
+        ui.showSettings = true;
+        ui.settingsTab = "Keyboard";
+    }
+    CommandRegistry& reg = app_.commands();
+    std::string lastCat;
+    const std::string needle = sheetFilter_;
+    if (ImGui::BeginTable("##sheet", 2, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingStretchProp)) {
+        for (const auto& a : reg.actions()) {
+            const std::string keys = reg.shortcutText(a.id);
+            if (keys.empty()) continue;
+            const std::string label = tr(a.label);
+            if (!needle.empty() && label.find(needle) == std::string::npos && keys.find(needle) == std::string::npos) continue;
+            if (a.category != lastCat) {
+                lastCat = a.category;
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::SeparatorText(tr(a.category.c_str()));
+                ImGui::TableNextColumn();
+            }
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextUnformatted(label.c_str());
+            ImGui::TableNextColumn();
+            ImGui::TextColored(ImVec4(0.55f, 0.75f, 1.0f, 1.0f), "%s", keys.c_str());
+        }
+        ImGui::EndTable();
+    }
     ImGui::End();
 }
 
@@ -394,9 +590,9 @@ void MainWindow::newProjectDialog() {
     static const std::pair<const char*, Rational> rates[] = {{"23.976", {24000, 1001}}, {"24", {24, 1}}, {"25", {25, 1}},
                                                              {"29.97", {30000, 1001}},  {"30", {30, 1}}, {"50", {50, 1}},
                                                              {"59.94", {60000, 1001}},  {"60", {60, 1}}};
-    ImGui::InputText(tr("Name"), newName_, sizeof newName_);
-    ImGui::Combo(tr("Format"), &newPreset_, [](void*, int i) { return fmts[i].name; }, nullptr, 6);
-    ImGui::Combo(tr("Frame Rate"), &newRate_, [](void*, int i) { return rates[i].first; }, nullptr, 8);
+    ImGui::InputText(formRow(tr("Name")), newName_, sizeof newName_);
+    ImGui::Combo(formRow(tr("Format")), &newPreset_, [](void*, int i) { return tr(fmts[i].name); }, nullptr, 6);
+    ImGui::Combo(formRow(tr("Frame Rate")), &newRate_, [](void*, int i) { return rates[i].first; }, nullptr, 8);
     ImGui::TextDisabled("%s", tr("The first video you import into an empty sequence can also set the format."));
     if (ImGui::Button(tr("Create"), ImVec2(ImGui::GetFontSize() * 7, 0))) {
         ProjectSettings s;

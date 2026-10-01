@@ -35,6 +35,8 @@ void App::registerCommands() {
         [this] { return !busySaving(); });
     add("file.import", "Import Media...", "File", {{"avicap", "Ctrl+I"}}, [this] { importDialog(); });
     add("file.importFolder", "Import Folder...", "File", {}, [this] { importFolderDialog(); });
+    add("file.addMusic", "Add Background Music...", "File", {{"avicap", "Ctrl+Shift+M"}}, [this] { addAudioDialog(true); }, hasSeq);
+    add("file.addSfx", "Add Sound Effect...", "File", {{"avicap", "Ctrl+Alt+E"}}, [this] { addAudioDialog(false); }, hasSeq);
     add("file.export", "Export...", "File", {{"avicap", "Ctrl+M"}, {"resolve", "Ctrl+Shift+E"}}, [this] { ui_.showExport = true; });
     add("file.exit", "Exit", "File", {{"avicap", "Alt+F4"}}, [this] { requestExit(); });
 
@@ -156,6 +158,11 @@ void App::registerCommands() {
     add("view.commandPalette", "Command Palette", "View", {{"avicap", "Ctrl+Shift+P"}}, [this] { ui_.showCommandPalette = true; });
 
     // ---------------------------------------------------------------- Help
+    add("help.shortcutSheet", "Shortcut List", "Help", {{"avicap", "F1"}}, [this] { ui_.showShortcutSheet = !ui_.showShortcutSheet; });
+    add("workspace.edit", "Edit Workspace", "View", {{"avicap", "Alt+1"}}, [this] { setWorkspace("edit"); });
+    add("workspace.color", "Color Workspace", "View", {{"avicap", "Alt+2"}}, [this] { setWorkspace("color"); });
+    add("workspace.audio", "Audio Workspace", "View", {{"avicap", "Alt+3"}}, [this] { setWorkspace("audio"); });
+    add("workspace.export", "Export Workspace", "View", {{"avicap", "Alt+4"}}, [this] { setWorkspace("export"); });
     add("help.about", "About AviCap Studio", "Help", {}, [this] { ui_.showAbout = true; });
     add("help.logs", "Open Logs Folder", "Help", {}, [] { openWithShell(pathToUtf8(logsDir())); });
     add("help.dataFolder", "Open Data Folder", "Help", {}, [this] { openWithShell(pathToUtf8(dataDir_)); });

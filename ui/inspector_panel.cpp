@@ -66,7 +66,7 @@ void InspectorPanel::drawSequence(App& app, const Sequence& seq) {
     ImGui::Separator();
     char name[128];
     std::snprintf(name, sizeof name, "%s", seq.name.c_str());
-    if (ImGui::InputText(tr("Name"), name, sizeof name, ImGuiInputTextFlags_EnterReturnsTrue)) {
+    if (ImGui::InputText(formRow(tr("Name")), name, sizeof name, ImGuiInputTextFlags_EnterReturnsTrue)) {
         const std::string n = name;
         app.editSequence("Rename Sequence", [&](SequenceEditor& e) {
             e.props().name = n;
@@ -74,7 +74,7 @@ void InspectorPanel::drawSequence(App& app, const Sequence& seq) {
         });
     }
     int wh[2] = {seq.width, seq.height};
-    if (ImGui::InputInt2(tr("Resolution"), wh, ImGuiInputTextFlags_EnterReturnsTrue)) {
+    if (ImGui::InputInt2(formRow(tr("Resolution")), wh, ImGuiInputTextFlags_EnterReturnsTrue)) {
         const int w = std::clamp(wh[0] & ~1, 16, 16384), h = std::clamp(wh[1] & ~1, 16, 16384);
         app.editSequence("Sequence Resolution", [&](SequenceEditor& e) {
             e.props().width = w;
@@ -86,7 +86,7 @@ void InspectorPanel::drawSequence(App& app, const Sequence& seq) {
                                                              {"29.97", {30000, 1001}},  {"30", {30, 1}},   {"50", {50, 1}},
                                                              {"59.94", {60000, 1001}},  {"60", {60, 1}},   {"120", {120, 1}}};
     const std::string cur = fpsText(seq.frameRate);
-    if (ImGui::BeginCombo(tr("Frame Rate"), cur.c_str())) {
+    if (ImGui::BeginCombo(formRow(tr("Frame Rate")), cur.c_str())) {
         for (const auto& [label, r] : rates)
             if (ImGui::Selectable(label, r == seq.frameRate)) {
                 const Rational rr = r;
@@ -98,7 +98,7 @@ void InspectorPanel::drawSequence(App& app, const Sequence& seq) {
         ImGui::EndCombo();
     }
     float bg[4] = {seq.backgroundColor[0], seq.backgroundColor[1], seq.backgroundColor[2], seq.backgroundColor[3]};
-    if (ImGui::ColorEdit3(tr("Background"), bg)) {
+    if (ImGui::ColorEdit3(formRow(tr("Background")), bg)) {
         const ParamValue v{bg[0], bg[1], bg[2], 1.0f};
         app.editSequence("Background Color", [&](SequenceEditor& e) {
             e.props().backgroundColor = v;
@@ -106,7 +106,7 @@ void InspectorPanel::drawSequence(App& app, const Sequence& seq) {
         }, EditOptions{"seq-bg"});
     }
     float master = seq.masterVolumeDb;
-    if (ImGui::SliderFloat(tr("Master Volume"), &master, -60.0f, 12.0f, "%.1f dB")) {
+    if (ImGui::SliderFloat(formRow(tr("Master Volume")), &master, -60.0f, 12.0f, "%.1f dB")) {
         app.editSequence("Master Volume", [&](SequenceEditor& e) {
             e.props().masterVolumeDb = master;
             return Status::ok();
@@ -151,7 +151,7 @@ void InspectorPanel::drawTextSection(App& app, const Clip& clip) {
     }
     TextStyle st = clip.textStyle;
     bool changed = false;
-    if (ImGui::BeginCombo(tr("Font"), st.fontFamily.c_str(), ImGuiComboFlags_HeightLarge)) {
+    if (ImGui::BeginCombo(formRow(tr("Font")), st.fontFamily.c_str(), ImGuiComboFlags_HeightLarge)) {
         for (const auto& fam : fontFamilies())
             if (ImGui::Selectable(fam.c_str(), fam == st.fontFamily)) {
                 st.fontFamily = fam;
@@ -159,19 +159,18 @@ void InspectorPanel::drawTextSection(App& app, const Clip& clip) {
             }
         ImGui::EndCombo();
     }
-    changed |= ImGui::DragFloat(tr("Size"), &st.fontSize, 0.5f, 4.0f, 600.0f, "%.0f px");
-    changed |= ImGui::SliderInt(tr("Weight"), &st.fontWeight, 100, 900);
-    changed |= ImGui::Checkbox(tr("Italic"), &st.italic);
-    ImGui::SameLine();
+    changed |= ImGui::DragFloat(formRow(tr("Size")), &st.fontSize, 0.5f, 4.0f, 600.0f, "%.0f px");
+    changed |= ImGui::SliderInt(formRow(tr("Weight")), &st.fontWeight, 100, 900);
     int align = static_cast<int>(st.align);
     const char* aligns[] = {tr("Left"), tr("Center"), tr("Right")};
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
-    if (ImGui::Combo(tr("Align"), &align, aligns, 3)) {
+    if (ImGui::Combo(formRow(tr("Align")), &align, aligns, 3)) {
         st.align = static_cast<TextAlign>(align);
         changed = true;
     }
-    changed |= ImGui::DragFloat(tr("Tracking"), &st.tracking, 1.0f, -200.0f, 1000.0f, "%.0f");
-    changed |= ImGui::DragFloat(tr("Line Spacing"), &st.lineSpacing, 0.01f, 0.5f, 4.0f, "%.2f");
+    changed |= ImGui::DragFloat(formRow(tr("Tracking")), &st.tracking, 1.0f, -200.0f, 1000.0f, "%.0f");
+    changed |= ImGui::DragFloat(formRow(tr("Line Spacing")), &st.lineSpacing, 0.01f, 0.5f, 4.0f, "%.2f");
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetFontSize() * 9.0f);
+    changed |= ImGui::Checkbox(tr("Italic"), &st.italic);
     if (changed) {
         const ClipId id = clip.id;
         app.editSequence("Text Style", [&](SequenceEditor& e) {
@@ -336,7 +335,7 @@ void InspectorPanel::drawClip(App& app, const Sequence& seq, const Clip& clip) {
         if (sectionHeader(tr("Opacity & Blend"))) {
             drawParamSet(app, clip, transformParamDefs(), 0, "Opacity");
             int blend = static_cast<int>(clip.blend);
-            if (ImGui::BeginCombo(tr("Blend Mode"), tr(blendModeName(clip.blend)))) {
+            if (ImGui::BeginCombo(formRow(tr("Blend Mode")), tr(blendModeName(clip.blend)))) {
                 for (int b = 0; b < static_cast<int>(BlendMode::Count); ++b)
                     if (ImGui::Selectable(tr(blendModeName(static_cast<BlendMode>(b))), b == blend)) {
                         const ClipId id = clip.id;
@@ -356,7 +355,7 @@ void InspectorPanel::drawClip(App& app, const Sequence& seq, const Clip& clip) {
     }
     if (clip.kind == ClipKind::Solid && sectionHeader(tr("Color Matte"))) {
         float c[4] = {clip.solidColor[0], clip.solidColor[1], clip.solidColor[2], clip.solidColor[3]};
-        if (ImGui::ColorEdit4(tr("Color"), c)) {
+        if (ImGui::ColorEdit4(formRow(tr("Color")), c)) {
             const ClipId id = clip.id;
             const ParamValue v{c[0], c[1], c[2], c[3]};
             app.editSequence("Matte Color", [&](SequenceEditor& e) {
@@ -388,7 +387,7 @@ void InspectorPanel::drawClip(App& app, const Sequence& seq, const Clip& clip) {
     if (audioClip && sectionHeader(tr("Audio"))) {
         drawParamSet(app, clip, audioParamDefs(), 1, nullptr);
         float gain = clip.gainDb;
-        if (ImGui::DragFloat(tr("Gain"), &gain, 0.1f, -40.0f, 40.0f, "%.1f dB")) {
+        if (ImGui::DragFloat(formRow(tr("Gain")), &gain, 0.1f, -40.0f, 40.0f, "%.1f dB")) {
             const ClipId id = clip.id;
             app.editSequence("Clip Gain", [&](SequenceEditor& e) {
                 e.mutableClip(id).gainDb = gain;

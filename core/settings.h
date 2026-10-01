@@ -11,7 +11,7 @@
 namespace avc {
 
 struct GeneralSettings {
-    std::string language = "auto";  // auto | en | ja
+    std::string language = "ja";  // auto | en | ja (Japanese by default)
     int autosaveIntervalSec = 60;
     std::vector<std::string> recentProjects;
     std::string defaultProjectDir;

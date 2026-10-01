@@ -33,7 +33,9 @@ private:
     void menuBar();
     void menuItem(const char* id, bool checked = false);
     void dockspace();
-    void buildDefaultLayout(ImGuiID dockId);
+    void buildDefaultLayout(ImGuiID dockId, const std::string& workspace);
+    void toolbar();
+    void shortcutSheet();
     void statusBar();
     void notifications();
     void modals();
@@ -72,6 +74,7 @@ private:
     bool speedRipple_ = true;
     // Command palette
     char paletteQuery_[128] = {};
+    char sheetFilter_[96] = {};
     int paletteIndex_ = 0;
 };
 

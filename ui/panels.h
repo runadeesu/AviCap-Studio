@@ -146,6 +146,7 @@ public:
 
 private:
     void drawTransport(App& app);
+    void drawWelcome(App& app, ImVec2 size);
     void drawOverlays(App& app, ImDrawList* dl, ImVec2 imgMin, ImVec2 imgMax);
     int zoom_ = 0;  // 0 fit, otherwise percent
     bool safeAreas_ = false;

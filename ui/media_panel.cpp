@@ -99,8 +99,15 @@ void MediaPanel::draw(App& app) {
     ImGui::BeginChild("##mediaitems", ImVec2(0, 0), ImGuiChildFlags_None);
     if (items.empty()) {
         ImGui::Spacing();
-        ImGui::TextWrapped("%s", app.project().media.empty() ? tr("Drop video, audio or image files here, or click + to import.")
-                                                              : tr("No media matches the filter."));
+        if (app.project().media.empty()) {
+            const float w = std::min(ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * 16);
+            if (ImGui::Button(tr("+ Import Media"), ImVec2(w, ImGui::GetFrameHeight() * 2.0f))) app.importDialog();
+            ImGui::Spacing();
+            ImGui::TextWrapped("%s", tr("Drop video, audio or image files here, or click + to import."));
+            ImGui::TextDisabled("%s", tr("Supported: MP4, MOV, MKV, WebM, AVI, MP3, WAV, AAC, FLAC, PNG, JPEG and more."));
+        } else {
+            ImGui::TextWrapped("%s", tr("No media matches the filter."));
+        }
     }
     const ImGuiIO& io = ImGui::GetIO();
     MediaId contextMedia = kInvalidId;

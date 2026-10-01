@@ -225,5 +225,5 @@ TEST_CASE("settings roundtrip with defaults for unknown fields") {
     AppSettings broken = AppSettings::fromJson("{\"general\": {\"autosaveIntervalSec\": \"oops\"}, \"cache\": 5}");
     CHECK(broken.general.autosaveIntervalSec == 60);
     AppSettings garbage = AppSettings::fromJson("not json");
-    CHECK(garbage.general.language == "auto");
+    CHECK(garbage.general.language == "ja");
 }

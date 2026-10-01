@@ -2,6 +2,7 @@
 
 #include <filesystem>
 
+#include "core/i18n.h"
 #include "core/log.h"
 #include "core/platform.h"
 #include "core/strings.h"
@@ -69,7 +70,7 @@ void applyTheme(float scale, bool highContrast) {
     }
     style.ScaleAllSizes(scale);
     style.FontScaleDpi = scale;
-    style.FontSizeBase = 15.0f;
+    style.FontSizeBase = 16.0f;
     ImGui::GetStyle() = style;
 }
 
@@ -77,37 +78,51 @@ std::string loadUiFonts() {
     ImGuiIO& io = ImGui::GetIO();
 #if defined(_WIN32)
     namespace fs = std::filesystem;
-    fs::path fonts = pathFromUtf8(getEnv("WINDIR").value_or("C:\\Windows")) / "Fonts";
-    std::string used;
+    const fs::path fonts = pathFromUtf8(getEnv("WINDIR").value_or("C:\\Windows")) / "Fonts";
     auto exists = [](const fs::path& p) {
         std::error_code ec;
         return fs::exists(p, ec);
     };
-    ImFontConfig cfg;
-    cfg.OversampleH = 2;
-    ImFont* main = nullptr;
-    for (const char* name : {"segoeui.ttf", "arial.ttf", "tahoma.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"}) {
-        if (exists(fonts / name)) {
-            main = io.Fonts->AddFontFromFileTTF(pathToUtf8(fonts / name).c_str(), 0.0f, &cfg);
-            if (main) {
-                used = name;
-                break;
+    struct Face {
+        const char* file;
+        int index;  // face inside a .ttc collection
+    };
+    // Japanese UI: a Japanese UI face first (it also covers Latin); English UI:
+    // Segoe UI first with a Japanese face merged in for project/media names.
+    static const Face japanese[] = {{"meiryo.ttc", 2 /* Meiryo UI */}, {"YuGothM.ttc", 0}, {"YuGothR.ttc", 0},
+                                    {"msgothic.ttc", 0}, {"NotoSansJP-Regular.otf", 0}, {"NotoSansCJK-Regular.ttc", 0},
+                                    {"ipaexg.ttf", 0}};
+    static const Face latin[] = {{"segoeui.ttf", 0}, {"arial.ttf", 0}, {"tahoma.ttf", 0}, {"DejaVuSans.ttf", 0},
+                                 {"LiberationSans-Regular.ttf", 0}};
+    const bool ja = currentLanguage() == Language::Japanese;
+    std::string used;
+    auto addFirst = [&](const Face* list, size_t n, bool merge) -> bool {
+        for (size_t i = 0; i < n; ++i) {
+            const fs::path p = fonts / list[i].file;
+            if (!exists(p)) continue;
+            ImFontConfig cfg;
+            cfg.MergeMode = merge;
+            cfg.FontNo = list[i].index;
+            cfg.OversampleH = 2;
+            if (io.Fonts->AddFontFromFileTTF(pathToUtf8(p).c_str(), 0.0f, &cfg)) {
+                used += std::string(used.empty() ? "" : " + ") + list[i].file;
+                return true;
             }
         }
+        return false;
+    };
+    bool haveMain = false;
+    if (ja) {
+        haveMain = addFirst(japanese, std::size(japanese), false);
+        if (!haveMain) haveMain = addFirst(latin, std::size(latin), false);
+    } else {
+        haveMain = addFirst(latin, std::size(latin), false);
+        if (haveMain) addFirst(japanese, std::size(japanese), true);
+        else haveMain = addFirst(japanese, std::size(japanese), false);
     }
-    if (!main) {
+    if (!haveMain) {
         io.Fonts->AddFontDefault();
         used = "ProggyClean (built-in)";
-    }
-    // Japanese glyphs (kana/kanji) merged into the main font.
-    ImFontConfig merge;
-    merge.MergeMode = true;
-    for (const char* name : {"YuGothM.ttc", "YuGothR.ttc", "meiryo.ttc", "msgothic.ttc", "NotoSansJP-Regular.otf",
-                             "NotoSansCJK-Regular.ttc", "ipaexg.ttf"}) {
-        if (exists(fonts / name) && io.Fonts->AddFontFromFileTTF(pathToUtf8(fonts / name).c_str(), 0.0f, &merge)) {
-            used += std::string(" + ") + name;
-            break;
-        }
     }
     AVC_INFO("ui", "UI fonts: {}", used);
     return used;

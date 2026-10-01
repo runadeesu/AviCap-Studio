@@ -142,7 +142,10 @@ public:
         for (char32_t c : cps)
             if ((c >= 0x3000 && c <= 0x9FFF) || (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF00 && c <= 0xFFEF) || (c >= 0xAC00 && c <= 0xD7AF))
                 cjk = true;
-        const std::wstring family = resolveFamily(utf8ToWide(req.style.fontFamily.empty() ? "Yu Gothic UI" : req.style.fontFamily), cjk);
+        const std::wstring family = resolveFamily(utf8ToWide(req.style.fontFamily.empty() ? "Yu Gothic UI" : req.style.fontFamily), cps, cjk);
+        // No installed family can draw this text through DirectWrite: let the
+        // fallback rasterizer (which scans font files) handle it.
+        if (family.empty()) return Result<TextRasterPtr>::error("no installed font covers this text");
         Com<IDWriteTextFormat> fmt;
         HRESULT hr = dw_->CreateTextFormat(family.c_str(), nullptr,
                                            static_cast<DWRITE_FONT_WEIGHT>(std::clamp(req.style.fontWeight, 100, 950)),
@@ -242,7 +245,11 @@ public:
             if (c != U' ' && c != U'\n' && c != U'\r' && c != U'\t' && c != 0x3000) anyGlyph = true;
         if (anyGlyph && std::none_of(raster->fill.begin(), raster->fill.end(), [](uint8_t v) { return v > 16; }))
             return Result<TextRasterPtr>::error("no glyphs rendered with font family '" + wideToUtf8(family) + "'");
-        if (stroke > 0.0f && !render(true, raster->stroke)) raster->stroke.clear();
+        // Geometric outer stroke (exact, round joins). Wine's Direct2D produces
+        // broken outline geometry, so there the compositor derives the stroke
+        // by dilating the fill instead (empty stroke mask).
+        static const bool wine = GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "wine_get_version") != nullptr;
+        if (stroke > 0.0f && (wine || !render(true, raster->stroke))) raster->stroke.clear();
         return TextRasterPtr(raster);
     }
 
@@ -275,56 +282,60 @@ public:
     std::string backendName() const override { return "DirectWrite"; }
 
 private:
-    // Maps a requested family to an installed one (projects may come from
-    // machines with other fonts). Prefers Japanese-capable faces for CJK text.
-    std::wstring resolveFamily(const std::wstring& requested, bool cjk) {
-        const std::wstring key = requested + (cjk ? L"|cjk" : L"");
-        if (auto it = resolved_.find(key); it != resolved_.end()) return it->second;
+    // Whether `family` exists and has glyphs for every visible code point.
+    bool familyCovers(IDWriteFontCollection* coll, const wchar_t* family, const std::u32string& cps) {
+        UINT32 idx = 0;
+        BOOL exists = FALSE;
+        if (FAILED(coll->FindFamilyName(family, &idx, &exists)) || !exists) return false;
+        Com<IDWriteFontFamily> fam;
+        Com<IDWriteFont> font;
+        Com<IDWriteFontFace> face;
+        if (FAILED(coll->GetFontFamily(idx, fam.put())) ||
+            FAILED(fam->GetFirstMatchingFont(DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STRETCH_NORMAL, DWRITE_FONT_STYLE_NORMAL, font.put())) ||
+            FAILED(font->CreateFontFace(face.put())))
+            return false;
+        std::vector<UINT32> codes;
+        for (char32_t c : cps)
+            if (c > 0x20 && c != 0x3000 && c != 0xFEFF) codes.push_back(static_cast<UINT32>(c));
+        if (codes.empty()) return true;
+        std::vector<UINT16> glyphs(codes.size());
+        if (FAILED(face->GetGlyphIndices(codes.data(), static_cast<UINT32>(codes.size()), glyphs.data()))) return false;
+        return std::none_of(glyphs.begin(), glyphs.end(), [](UINT16 g) { return g == 0; });
+    }
+
+    // Maps the requested family to an installed one that can draw the text
+    // (projects may come from machines with other fonts). Returns "" when no
+    // installed family covers the text, so the caller can fall back.
+    std::wstring resolveFamily(const std::wstring& requested, const std::u32string& cps, bool cjk) {
         Com<IDWriteFontCollection> coll;
-        std::wstring result = requested;
-        if (SUCCEEDED(dw_->GetSystemFontCollection(coll.put(), FALSE)) && coll) {
-            auto has = [&](const wchar_t* name) {
-                UINT32 idx = 0;
-                BOOL exists = FALSE;
-                return SUCCEEDED(coll->FindFamilyName(name, &idx, &exists)) && exists;
-            };
-            if (!has(requested.c_str())) {
-                static const wchar_t* cjkFaces[] = {L"Yu Gothic UI", L"Yu Gothic", L"Meiryo UI", L"Meiryo", L"MS Gothic",
-                                                    L"Noto Sans CJK JP", L"Noto Sans JP", L"Source Han Sans JP", L"IPAexGothic"};
-                static const wchar_t* latinFaces[] = {L"Segoe UI", L"Arial", L"Tahoma", L"DejaVu Sans", L"Liberation Sans"};
-                result.clear();
-                for (int pass = 0; pass < 2 && result.empty(); ++pass) {
-                    const bool useCjk = (pass == 0) == cjk;
-                    if (useCjk) {
-                        for (const wchar_t* f : cjkFaces)
-                            if (has(f)) {
-                                result = f;
-                                break;
-                            }
-                    } else {
-                        for (const wchar_t* f : latinFaces)
-                            if (has(f)) {
-                                result = f;
-                                break;
-                            }
-                    }
+        if (FAILED(dw_->GetSystemFontCollection(coll.put(), FALSE)) || !coll) return requested;
+        if (familyCovers(coll.p, requested.c_str(), cps)) return requested;
+        const std::wstring key = requested + (cjk ? L"|cjk" : L"|latin");
+        if (auto it = resolved_.find(key); it != resolved_.end() && (it->second.empty() || familyCovers(coll.p, it->second.c_str(), cps)))
+            return it->second;
+        static const wchar_t* cjkFaces[] = {L"Yu Gothic UI", L"Yu Gothic", L"Meiryo UI", L"Meiryo", L"MS Gothic", L"MS UI Gothic",
+                                            L"BIZ UDGothic", L"Noto Sans CJK JP", L"Noto Sans JP", L"Source Han Sans JP",
+                                            L"IPAexGothic", L"IPAGothic", L"Yu Mincho", L"MS Mincho"};
+        static const wchar_t* latinFaces[] = {L"Segoe UI", L"Arial", L"Tahoma", L"DejaVu Sans", L"Liberation Sans"};
+        std::wstring result;
+        for (int pass = 0; pass < 2 && result.empty(); ++pass) {
+            const bool useCjk = (pass == 0) == cjk;
+            const wchar_t* const* list = useCjk ? cjkFaces : latinFaces;
+            const size_t n = useCjk ? std::size(cjkFaces) : std::size(latinFaces);
+            for (size_t i = 0; i < n; ++i)
+                if (familyCovers(coll.p, list[i], cps)) {
+                    result = list[i];
+                    break;
                 }
-                if (result.empty() && coll->GetFontFamilyCount() > 0) {
-                    Com<IDWriteFontFamily> fam;
-                    Com<IDWriteLocalizedStrings> names;
-                    if (SUCCEEDED(coll->GetFontFamily(0, fam.put())) && SUCCEEDED(fam->GetFamilyNames(names.put()))) {
-                        UINT32 len = 0;
-                        names->GetStringLength(0, &len);
-                        std::wstring n(len + 1, L'\0');
-                        names->GetString(0, n.data(), len + 1);
-                        n.resize(len);
-                        result = n;
-                    }
-                }
-                if (result.empty()) result = requested;
-                AVC_WARN("text", "font '{}' is not installed; using '{}'", wideToUtf8(requested), wideToUtf8(result));
-            }
         }
+        if (result.empty() && !cjk) {
+            UINT32 idx = 0;
+            BOOL exists = FALSE;
+            if (SUCCEEDED(coll->FindFamilyName(requested.c_str(), &idx, &exists)) && exists) result = requested;
+        }
+        if (result != requested)
+            AVC_WARN("text", "font '{}' cannot draw this text here; using '{}'", wideToUtf8(requested),
+                     result.empty() ? std::string("fallback rasterizer") : wideToUtf8(result));
         resolved_[key] = result;
         return result;
     }

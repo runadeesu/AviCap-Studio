@@ -37,11 +37,21 @@ enum class Icon {
     Play, Pause, Stop, ToStart, ToEnd, StepBack, StepForward, Loop, Keyframe, KeyframeFilled, KeyPrev, KeyNext,
     Plus, Minus, Close, Eye, EyeOff, Lock, Unlock, Speaker, Mute, Razor, Pointer, Magnet, Link, Gear, Folder,
     Trash, Marker, Up, Down, Reset, Search, Film, Music, Image, Text, Check, Warning,
+    Save, Undo, Redo, Export, Subtitle, Effects, Palette, Help, Sound,
 };
 void drawIcon(ImDrawList* dl, Icon icon, ImVec2 center, float size, ImU32 color);
 // Square button with a vector icon; `active` draws it highlighted.
 bool iconButton(const char* id, Icon icon, const char* tooltip = nullptr, bool active = false, float size = 0.0f);
 bool textToggle(const char* label, bool* value, const char* tooltip = nullptr, ImU32 onColor = IM_COL32(70, 120, 200, 255));
+// Toolbar button with a vector icon and a text label (more discoverable than icons alone).
+bool iconTextButton(const char* id, Icon icon, const char* label, const char* tooltip = nullptr, bool active = false,
+                    bool enabled = true);
+// Form row with the label on the left (reads naturally for Japanese UI text);
+// the next widget fills the rest of the row. Pass "##id" labels to widgets.
+void formLabel(const char* label, float labelWidth = 0.0f);
+// formLabel() + returns a hidden widget id for the same label, so it can wrap
+// an existing call: ImGui::SliderFloat(formRow(tr("Gain")), ...).
+const char* formRow(const char* label, float labelWidth = 0.0f);
 void tooltip(const char* text);  // hover tooltip (respects the tooltip setting)
 void setTooltipsEnabled(bool on);
 void helpMarker(const char* text);
