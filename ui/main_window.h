@@ -62,6 +62,7 @@ private:
     HistoryPanel history_;
     MarkersPanel markers_;
     DiagnosticsPanel diagnostics_;
+    AiPanel ai_;
     SettingsWindow settings_;
 
     bool layoutBuilt_ = false;

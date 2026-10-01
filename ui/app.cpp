@@ -114,6 +114,7 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
     const fs::path cacheRoot = settings_.cache.location.empty() ? dataDir_ / "Cache" : pathFromUtf8(settings_.cache.location);
     cacheStore_ = std::make_unique<cache::CacheStore>(cacheRoot);
     assets_ = std::make_unique<AssetService>(*cacheStore_, *device_, [this] { wake(); });
+    ai_ = std::make_unique<AiService>(*this, cacheStore_.get());
     const fs::path proxyDir = settings_.proxy.location.empty() ? cacheRoot / "proxies" : pathFromUtf8(settings_.proxy.location);
     proxies_ = std::make_unique<proxy::ProxyManager>(proxyDir);
     std::string worker = opt.workerExecutable;
@@ -160,7 +161,8 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
         headless_ ? audio::createNullOutput(48000) : audio::createDefaultOutput(settings_.audio.outputDevice, settings_.audio.bufferMs);
     playback_ = std::make_unique<audio::PlaybackEngine>(
         [this] {
-            ProjectPtr p = doc_->snapshot();
+            ProjectPtr p = planPreview();
+            if (!p) p = doc_->snapshot();
             return std::make_pair(p, p ? p->activeSequence : kInvalidId);
         },
         std::move(out));
@@ -199,6 +201,7 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
 App::~App() {
     prepareExit();
     posts_->close();
+    ai_.reset();
     // Background jobs reference engines owned here: let them finish first.
     Jobs::io().waitIdle();
     playback_.reset();
@@ -316,7 +319,8 @@ void App::tick() {
 
 void App::updatePreviewRequest() {
     PreviewRequest r;
-    r.project = doc_->current();
+    r.project = planPreview();
+    if (!r.project) r.project = doc_->current();
     r.sequence = sequenceId();
     Time t = playhead();
     const bool isPlaying = playing();
@@ -960,6 +964,8 @@ Time App::snapToFrame(Time t) const {
 }
 
 Time App::sequenceEnd() const {
+    if (ProjectPtr p = planPreview())
+        if (const Sequence* ps = p->active()) return ps->duration();
     const Sequence* s = sequence();
     return s ? s->duration() : Time{0};
 }
@@ -1066,7 +1072,27 @@ Status App::editProject(const std::string& label, const std::function<Status(Pro
     return st;
 }
 
+void App::setPlanPreview(ProjectPtr p) {
+    {
+        std::lock_guard lk(planPreviewMutex_);
+        if (planPreview_ == p) return;
+        planPreview_ = std::move(p);
+    }
+    playback_->setEndTime(sequenceEnd());
+    wake();
+}
+
+ProjectPtr App::planPreview() const {
+    std::lock_guard lk(planPreviewMutex_);
+    return planPreview_;
+}
+
 void App::onDocumentChanged(const ChangeEvent& ev) {
+    // The preview was computed from the previous document state.
+    if (planPreview()) {
+        ai_->discardPlan();
+        setPlanPreview(nullptr);
+    }
     if (ev.kind != ChangeEvent::Kind::Edit) pruneSelection();
     playback_->setEndTime(sequenceEnd());
     const Sequence* a = ev.before ? ev.before->active() : nullptr;

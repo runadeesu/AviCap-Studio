@@ -23,8 +23,8 @@ namespace {
 std::set<std::string> trLiteralsInSources() {
     std::set<std::string> out;
     const std::filesystem::path root = AVICAP_SOURCE_DIR;
-    const std::regex call(R"re(\btr\(\s*"((?:[^"\\]|\\.)*)")re");
-    for (const char* dir : {"ui", "apps/studio"}) {
+    const std::regex call(R"re(\b(?:tr|fmt|trNoop)\(\s*"((?:[^"\\]|\\.)*)")re");
+    for (const char* dir : {"ui", "apps/studio", "ai"}) {
         std::error_code ec;
         for (std::filesystem::directory_iterator it(root / dir, ec), end; !ec && it != end; it.increment(ec)) {
             if (it->path().extension() != ".cpp") continue;
@@ -32,7 +32,18 @@ std::set<std::string> trLiteralsInSources() {
             std::stringstream ss;
             ss << f.rdbuf();
             const std::string text = ss.str();
-            for (std::sregex_iterator m(text.begin(), text.end(), call), mend; m != mend; ++m) out.insert((*m)[1].str());
+            for (std::sregex_iterator m(text.begin(), text.end(), call), mend; m != mend; ++m) {
+                std::string lit = (*m)[1].str(), unescaped;
+                for (size_t i = 0; i < lit.size(); ++i) {
+                    if (lit[i] != '\\' || i + 1 == lit.size()) {
+                        unescaped += lit[i];
+                        continue;
+                    }
+                    const char e = lit[++i];
+                    unescaped += e == 'n' ? '\n' : e == 't' ? '\t' : e;
+                }
+                out.insert(unescaped);
+            }
         }
     }
     return out;
@@ -86,6 +97,8 @@ TEST_CASE("every UI string has a Japanese translation") {
     for (int i = 0; i <= static_cast<int>(TrackKind::Effect); ++i) strings.insert(trackKindName(static_cast<TrackKind>(i)));
     for (int i = 0; i < static_cast<int>(BlendMode::Count); ++i) strings.insert(blendModeName(static_cast<BlendMode>(i)));
     for (int i = 0; i <= static_cast<int>(MarkerKind::Todo); ++i) strings.insert(markerKindName(static_cast<MarkerKind>(i)));
+    // Plan targets shown through tr(variable) in ai/plan.cpp.
+    for (const char* t : {"music", "voice", "all", "selected", "all_video", "all_audio", "in", "out", "both"}) strings.insert(t);
 
     std::vector<std::string> missing;
     for (const auto& s : strings)

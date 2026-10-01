@@ -160,6 +160,24 @@ void TimelinePanel::draw(App& app) {
     }
     drawToolbar(app);
 
+    // AI plan preview: the timeline shows the result read-only until applied.
+    const ProjectPtr planPrev = app.planPreview();
+    const Sequence* previewSeq = planPrev ? planPrev->findSequence(app.sequenceId()) : nullptr;
+    if (previewSeq) {
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.35f, 0.25f, 0.55f, 0.55f));
+        ImGui::BeginChild("##ai_preview_banner", ImVec2(0, ImGui::GetFrameHeightWithSpacing() + 6), ImGuiChildFlags_None,
+                          ImGuiWindowFlags_NoScrollbar);
+        ImGui::SetCursorPos(ImVec2(8, 3));
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextUnformatted(tr("AI preview: the changes are not applied yet"));
+        ImGui::SameLine();
+        if (ImGui::Button(tr("Apply"))) app.ai().applyPlan();
+        ImGui::SameLine();
+        if (ImGui::Button(tr("Discard"))) app.ai().discardPlan();
+        ImGui::EndChild();
+        ImGui::PopStyleColor();
+    }
+
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::BeginChild("##timeline_area", ImVec2(0, 0), ImGuiChildFlags_None,
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoMove);
@@ -174,7 +192,7 @@ void TimelinePanel::draw(App& app) {
     const float areaW = std::max(10.0f, areaMax_.x - areaMin_.x);
 
     // The drag preview (if any) is what we draw.
-    const Sequence* seq = active;
+    const Sequence* seq = previewSeq ? previewSeq : active;
     if (preview_) {
         if (const Sequence* p = preview_->findSequence(app.sequenceId())) seq = p;
     }
@@ -187,8 +205,10 @@ void TimelinePanel::draw(App& app) {
     dl->AddRectFilled(areaMin_, areaMax_, IM_COL32(28, 29, 33, 255));
 
     // Lanes input first (so drags update the preview before drawing).
-    handleLaneInput(app, *active);
-    if (preview_) {
+    if (!previewSeq) handleLaneInput(app, *active);
+    if (previewSeq) {
+        seq = previewSeq;
+    } else if (preview_) {
         if (const Sequence* p = preview_->findSequence(app.sequenceId())) seq = p;
     } else {
         seq = app.sequence();
@@ -212,7 +232,25 @@ void TimelinePanel::draw(App& app) {
         const float x0 = timeToX(seq->workArea->start), x1 = timeToX(seq->workArea->end());
         dl->AddRectFilled(ImVec2(x0, areaMin_.y), ImVec2(x1, areaMax_.y), IM_COL32(90, 140, 220, 18));
     }
+    // Analysis overlay (e.g. the silence that would be removed).
+    if (const TimelineOverlay* ov = previewSeq ? nullptr : app.ai().overlay()) {
+        for (const TimeRange& r : ov->ranges) {
+            const float x0 = timeToX(r.start), x1 = std::max(x0 + 1.0f, timeToX(r.end()));
+            if (x1 < areaMin_.x || x0 > areaMax_.x) continue;
+            dl->AddRectFilled(ImVec2(x0, areaMin_.y), ImVec2(x1, areaMax_.y), ov->color);
+        }
+    }
     drawClips(app, *seq, dl);
+    if (const TimelineOverlay* ov = previewSeq ? nullptr : app.ai().overlay()) {
+        // Hatched on top of the clips so the cut parts stay visible.
+        for (const TimeRange& r : ov->ranges) {
+            const float x0 = timeToX(r.start), x1 = std::max(x0 + 1.0f, timeToX(r.end()));
+            if (x1 < areaMin_.x || x0 > areaMax_.x) continue;
+            dl->AddRectFilled(ImVec2(x0, areaMin_.y), ImVec2(x1, areaMax_.y), (ov->color & 0x00FFFFFFu) | 0x38000000u);
+            dl->AddLine(ImVec2(x0, areaMin_.y), ImVec2(x0, areaMax_.y), ov->color | 0xC0000000u, 1.0f);
+            dl->AddLine(ImVec2(x1, areaMin_.y), ImVec2(x1, areaMax_.y), ov->color | 0xC0000000u, 1.0f);
+        }
+    }
     if (seq->clipCount() == 0 && !preview_) {
         const char* hint = tr("Drag media here from the Media panel (Ctrl+drop inserts). Double-click media to add it at the playhead.");
         const ImVec2 ts = ImGui::CalcTextSize(hint);

@@ -299,3 +299,89 @@ TEST_CASE("unsaved-changes guard and crash recovery through the UI") {
     CHECK(found);
     CHECK(app.doc().dirty());
 }
+
+TEST_CASE("AI tools: silence removal and plan preview through the app") {
+    const std::string voice = test::testMedia("speech_silence.wav");
+    if (voice.empty()) {
+        MESSAGE("test media missing");
+        return;
+    }
+    auto dir = test::makeTempDir("ui_ai");
+    AppOptions opt;
+    opt.dataDir = dir / "data";
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app, ImVec2(1600, 900));
+    app.ui().showAi = true;
+    host.frames(2);
+
+    app.importFiles({voice});
+    REQUIRE(runUntil(host, [&] { return app.project().media.size() == 1 && app.importsInProgress() == 0; }));
+    const MediaId voiceId = app.project().media[0]->id;
+    app.appendMediaAtPlayhead(voiceId);
+    REQUIRE(app.sequence()->clipCount() == 1);
+    const double before = app.sequence()->duration().seconds();
+    CHECK(before == doctest::Approx(9.0).epsilon(0.01));
+
+    AiService& ai = app.ai();
+    const auto voiceSet = ai.voiceMedia();
+    REQUIRE(voiceSet.count(voiceId) == 1);
+    bool done = false, ok = false;
+    ai.analyze(AnalysisKind::Silence, voiceSet, [&](bool o, const std::string&) {
+        done = true;
+        ok = o;
+    });
+    CHECK(ai.busy());
+    REQUIRE(runUntil(host, [&] { return done; }));
+    CHECK(ok);
+    const auto ranges = ai.silenceRangesOnTimeline();
+    REQUIRE(ranges.size() == 2);  // 1-2.5 s and 6-8 s (the 0.2 s dip is kept)
+    double cut = 0;
+    for (const auto& r : ranges) cut += r.duration.seconds();
+    ai.showSilenceOverlay = true;
+    host.frames(2);  // timeline draws the overlay, AI panel shows the result
+    REQUIRE(ai.overlay());
+    CHECK(ai.overlay()->ranges.size() == 2);
+
+    // Results are cached: a second request finishes immediately.
+    bool again = false;
+    ai.analyze(AnalysisKind::Silence, voiceSet, [&](bool o, const std::string&) { again = o; });
+    CHECK(again);
+    CHECK_FALSE(ai.busy());
+
+    const size_t undoBefore = app.doc().undoHistory().size();
+    REQUIRE(ai.removeSilence());
+    CHECK(app.doc().undoHistory().size() == undoBefore + 1);
+    CHECK(app.sequence()->duration().seconds() == doctest::Approx(before - cut).epsilon(0.01));
+    CHECK_FALSE(ai.overlay());
+    app.undo();
+    CHECK(app.sequence()->duration().seconds() == doctest::Approx(before).epsilon(0.01));
+
+    // Natural-language plan: preview does not touch the document; apply is one undo step.
+    ai.makePlan("最初の1秒をカットして、2倍速にして");
+    auto& st = ai.planState();
+    REQUIRE(st.plan.steps.size() == 2);
+    st.enabled[1] = false;  // the user unticks a step
+    const uint64_t rev = app.doc().revision();
+    ai.previewPlan();
+    REQUIRE(app.planPreview());
+    CHECK(st.previewing);
+    CHECK(app.doc().revision() == rev);
+    CHECK(app.planPreview()->active()->duration().seconds() == doctest::Approx(before - 1.0).epsilon(0.01));
+    host.frames(3);  // viewer, timeline banner and panel draw the preview
+    ai.applyPlan();
+    CHECK_FALSE(app.planPreview());
+    CHECK(app.doc().undoLabel() == "AI Edit");
+    CHECK(app.sequence()->duration().seconds() == doctest::Approx(before - 1.0).epsilon(0.01));
+    app.undo();
+    CHECK(app.sequence()->duration().seconds() == doctest::Approx(before).epsilon(0.01));
+
+    // A plan step that cannot run reports an error and changes nothing.
+    app.selection.clear();
+    ai.makePlan("2倍速にして");  // nothing selected
+    ai.previewPlan();
+    CHECK_FALSE(app.planPreview());
+    CHECK_FALSE(st.error.empty());
+    host.frames(2);
+}

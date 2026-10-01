@@ -1,6 +1,8 @@
 # UI layer (Dear ImGui). Everything except the Win32 platform layer builds on
 # every platform so the editor can be driven and tested headless.
 set(AVICAP_UI_SOURCES
+    ai_panel.cpp
+    ai_service.cpp
     app.cpp
     app_commands.cpp
     assets.cpp
@@ -30,7 +32,7 @@ endif()
 
 avicap_add_module(ui
     SOURCES ${AVICAP_UI_SOURCES}
-    DEPS AviCap::imgui AviCap::cache AviCap::export AviCap::proxy AviCap::project AviCap::audio
+    DEPS AviCap::ai AviCap::imgui AviCap::cache AviCap::export AviCap::proxy AviCap::project AviCap::audio
          AviCap::render AviCap::effects AviCap::text AviCap::media AviCap::timeline AviCap::core)
 
 if(WIN32)

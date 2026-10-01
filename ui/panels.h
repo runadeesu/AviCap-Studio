@@ -240,6 +240,18 @@ private:
     bool autoScroll_ = true;
 };
 
+class AiPanel {
+public:
+    void draw(App& app);
+
+private:
+    void drawPlan(App& app);
+    void drawSilence(App& app);
+    void drawAnalysis(App& app);
+    char prompt_[2048] = {};
+    float sensitivity_ = 0.5f;
+};
+
 class SettingsWindow {
 public:
     void draw(App& app);

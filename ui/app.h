@@ -27,6 +27,7 @@
 #include "proxy/proxy.h"
 #include "timeline/document.h"
 #include "timeline/edit_ops.h"
+#include "ui/ai_service.h"
 #include "ui/assets.h"
 #include "ui/commands.h"
 #include "ui/preview.h"
@@ -137,7 +138,13 @@ public:
     AutosaveManager& autosave() { return *autosave_; }
     IDialogs& dialogs() { return *dialogs_; }
     UiState& ui() { return ui_; }
+    AiService& ai() { return *ai_; }
     [[nodiscard]] const std::string& projectPath() const { return projectPath_; }
+
+    // AI plan preview: shown instead of the document in the viewer, timeline
+    // and playback until applied or discarded (any document edit discards it).
+    void setPlanPreview(ProjectPtr p);
+    [[nodiscard]] ProjectPtr planPreview() const;
     [[nodiscard]] std::string windowTitle() const;
     [[nodiscard]] const std::filesystem::path& dataDir() const { return dataDir_; }
     [[nodiscard]] bool headless() const { return headless_; }
@@ -297,6 +304,9 @@ private:
     std::unique_ptr<exp::ExportQueue> exports_;
     CommandRegistry commands_;
     UiState ui_;
+    std::unique_ptr<AiService> ai_;
+    mutable std::mutex planPreviewMutex_;
+    ProjectPtr planPreview_;
 
     std::shared_ptr<PostQueue> posts_;
     std::string projectPath_;

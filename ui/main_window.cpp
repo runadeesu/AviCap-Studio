@@ -165,6 +165,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Color", right);
         dock("###Inspector", right);
         dock("###Effects", right);
+        dock("###AI", right);
         dock("###Timeline", bottom);
         dock("###Mixer", bottom);
         dock("###Export", right);
@@ -181,6 +182,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Effects", left);
         dock("###Viewer", center);
         dock("###Inspector", right);
+        dock("###AI", right);
         dock("###Markers", right);
         dock("###Color", right);
         dock("###Scopes", left);
@@ -196,6 +198,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Viewer", center);
         dock("###Export", right);
         dock("###Inspector", right);
+        dock("###AI", right);
         dock("###Media", center);
         dock("###Effects", center);
         dock("###Scopes", center);
@@ -215,6 +218,7 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Scopes", left);
         dock("###Viewer", center);
         dock("###Inspector", right);
+        dock("###AI", right);
         dock("###Color", right);
         dock("###Export", right);
         dock("###History", right);
@@ -245,6 +249,7 @@ void MainWindow::panelWindows() {
     panel(ui.showMarkers, "Markers", "Markers", [&] { markers_.draw(app_); });
     panel(ui.showDiagnostics, "Diagnostics", "Diagnostics", [&] { diagnostics_.draw(app_); });
     panel(ui.showMixer, "Audio Mixer", "Mixer", [&] { mixer_.draw(app_); });
+    panel(ui.showAi, "AI Tools", "AI", [&] { ai_.draw(app_); });
     panel(ui.showTimeline, "Timeline", "Timeline", [&] { timeline_.draw(app_); },
           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 }
@@ -360,7 +365,8 @@ void MainWindow::menuBar() {
             {"view.media", &ui.showMedia},     {"view.viewer", &ui.showViewer},   {"view.timeline", &ui.showTimeline},
             {"view.inspector", &ui.showInspector}, {"view.effects", &ui.showEffects}, {"view.color", &ui.showColor},
             {"view.mixer", &ui.showMixer},     {"view.scopes", &ui.showScopes},   {"view.export", &ui.showExport},
-            {"view.markers", &ui.showMarkers}, {"view.history", &ui.showHistory}, {"view.diagnostics", &ui.showDiagnostics}};
+            {"view.markers", &ui.showMarkers}, {"view.history", &ui.showHistory}, {"view.diagnostics", &ui.showDiagnostics},
+            {"view.ai", &ui.showAi}};
         for (const auto& [id, flag] : views) menuItem(id, *flag);
         ImGui::Separator();
         for (const char* id : {"workspace.edit", "workspace.color", "workspace.audio", "workspace.export"}) {
