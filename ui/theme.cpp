@@ -86,7 +86,7 @@ std::string loadUiFonts() {
     ImFontConfig cfg;
     cfg.OversampleH = 2;
     ImFont* main = nullptr;
-    for (const char* name : {"segoeui.ttf", "tahoma.ttf", "arial.ttf"}) {
+    for (const char* name : {"segoeui.ttf", "arial.ttf", "tahoma.ttf", "DejaVuSans.ttf", "LiberationSans-Regular.ttf"}) {
         if (exists(fonts / name)) {
             main = io.Fonts->AddFontFromFileTTF(pathToUtf8(fonts / name).c_str(), 0.0f, &cfg);
             if (main) {
@@ -102,7 +102,8 @@ std::string loadUiFonts() {
     // Japanese glyphs (kana/kanji) merged into the main font.
     ImFontConfig merge;
     merge.MergeMode = true;
-    for (const char* name : {"YuGothM.ttc", "YuGothR.ttc", "meiryo.ttc", "msgothic.ttc", "NotoSansJP-Regular.otf"}) {
+    for (const char* name : {"YuGothM.ttc", "YuGothR.ttc", "meiryo.ttc", "msgothic.ttc", "NotoSansJP-Regular.otf",
+                             "NotoSansCJK-Regular.ttc", "ipaexg.ttf"}) {
         if (exists(fonts / name) && io.Fonts->AddFontFromFileTTF(pathToUtf8(fonts / name).c_str(), 0.0f, &merge)) {
             used += std::string(" + ") + name;
             break;

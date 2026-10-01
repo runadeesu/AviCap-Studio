@@ -24,7 +24,15 @@ set(AVICAP_UI_SOURCES
     viewer_panel.cpp
     widgets.cpp)
 
+if(WIN32)
+    list(APPEND AVICAP_UI_SOURCES dialogs_win32.cpp platform_win32.cpp)
+endif()
+
 avicap_add_module(ui
     SOURCES ${AVICAP_UI_SOURCES}
     DEPS AviCap::imgui AviCap::cache AviCap::export AviCap::proxy AviCap::project AviCap::audio
          AviCap::render AviCap::effects AviCap::text AviCap::media AviCap::timeline AviCap::core)
+
+if(WIN32)
+    target_link_libraries(avicap_ui PUBLIC AviCap::imgui_win32 AviCap::stb ole32 shell32 uuid)
+endif()

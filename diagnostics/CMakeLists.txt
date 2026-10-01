@@ -1,1 +1,3 @@
-# Module 'diagnostics' - sources are added as the module is implemented.
+avicap_add_module(diagnostics
+    SOURCES crash.cpp
+    DEPS AviCap::core)

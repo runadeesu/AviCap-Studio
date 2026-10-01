@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 #include <mutex>
 
 #include "core/log.h"
@@ -137,7 +138,11 @@ public:
         std::wstring text = utf8ToWide(utf32ToUtf8(cps));
         if (text.empty()) text = L" ";
         const float px = std::max(1.0f, req.style.fontSize * req.scale);
-        const std::wstring family = utf8ToWide(req.style.fontFamily.empty() ? "Yu Gothic UI" : req.style.fontFamily);
+        bool cjk = false;
+        for (char32_t c : cps)
+            if ((c >= 0x3000 && c <= 0x9FFF) || (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF00 && c <= 0xFFEF) || (c >= 0xAC00 && c <= 0xD7AF))
+                cjk = true;
+        const std::wstring family = resolveFamily(utf8ToWide(req.style.fontFamily.empty() ? "Yu Gothic UI" : req.style.fontFamily), cjk);
         Com<IDWriteTextFormat> fmt;
         HRESULT hr = dw_->CreateTextFormat(family.c_str(), nullptr,
                                            static_cast<DWRITE_FONT_WEIGHT>(std::clamp(req.style.fontWeight, 100, 950)),
@@ -230,6 +235,13 @@ public:
             return true;
         };
         if (!render(false, raster->fill)) return Result<TextRasterPtr>::error("Direct2D text rendering failed");
+        // Visible characters but no ink: the font could not render them (missing
+        // glyphs / no usable font). Let the caller fall back to another rasterizer.
+        bool anyGlyph = false;
+        for (char32_t c : cps)
+            if (c != U' ' && c != U'\n' && c != U'\r' && c != U'\t' && c != 0x3000) anyGlyph = true;
+        if (anyGlyph && std::none_of(raster->fill.begin(), raster->fill.end(), [](uint8_t v) { return v > 16; }))
+            return Result<TextRasterPtr>::error("no glyphs rendered with font family '" + wideToUtf8(family) + "'");
         if (stroke > 0.0f && !render(true, raster->stroke)) raster->stroke.clear();
         return TextRasterPtr(raster);
     }
@@ -263,6 +275,61 @@ public:
     std::string backendName() const override { return "DirectWrite"; }
 
 private:
+    // Maps a requested family to an installed one (projects may come from
+    // machines with other fonts). Prefers Japanese-capable faces for CJK text.
+    std::wstring resolveFamily(const std::wstring& requested, bool cjk) {
+        const std::wstring key = requested + (cjk ? L"|cjk" : L"");
+        if (auto it = resolved_.find(key); it != resolved_.end()) return it->second;
+        Com<IDWriteFontCollection> coll;
+        std::wstring result = requested;
+        if (SUCCEEDED(dw_->GetSystemFontCollection(coll.put(), FALSE)) && coll) {
+            auto has = [&](const wchar_t* name) {
+                UINT32 idx = 0;
+                BOOL exists = FALSE;
+                return SUCCEEDED(coll->FindFamilyName(name, &idx, &exists)) && exists;
+            };
+            if (!has(requested.c_str())) {
+                static const wchar_t* cjkFaces[] = {L"Yu Gothic UI", L"Yu Gothic", L"Meiryo UI", L"Meiryo", L"MS Gothic",
+                                                    L"Noto Sans CJK JP", L"Noto Sans JP", L"Source Han Sans JP", L"IPAexGothic"};
+                static const wchar_t* latinFaces[] = {L"Segoe UI", L"Arial", L"Tahoma", L"DejaVu Sans", L"Liberation Sans"};
+                result.clear();
+                for (int pass = 0; pass < 2 && result.empty(); ++pass) {
+                    const bool useCjk = (pass == 0) == cjk;
+                    if (useCjk) {
+                        for (const wchar_t* f : cjkFaces)
+                            if (has(f)) {
+                                result = f;
+                                break;
+                            }
+                    } else {
+                        for (const wchar_t* f : latinFaces)
+                            if (has(f)) {
+                                result = f;
+                                break;
+                            }
+                    }
+                }
+                if (result.empty() && coll->GetFontFamilyCount() > 0) {
+                    Com<IDWriteFontFamily> fam;
+                    Com<IDWriteLocalizedStrings> names;
+                    if (SUCCEEDED(coll->GetFontFamily(0, fam.put())) && SUCCEEDED(fam->GetFamilyNames(names.put()))) {
+                        UINT32 len = 0;
+                        names->GetStringLength(0, &len);
+                        std::wstring n(len + 1, L'\0');
+                        names->GetString(0, n.data(), len + 1);
+                        n.resize(len);
+                        result = n;
+                    }
+                }
+                if (result.empty()) result = requested;
+                AVC_WARN("text", "font '{}' is not installed; using '{}'", wideToUtf8(requested), wideToUtf8(result));
+            }
+        }
+        resolved_[key] = result;
+        return result;
+    }
+
+    std::map<std::wstring, std::wstring> resolved_;
     std::mutex mutex_;
     Com<IDWriteFactory> dw_;
     Com<ID2D1Factory> d2d_;

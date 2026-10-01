@@ -25,6 +25,10 @@ struct InterfaceSettings {
     bool highContrast = false;  // also enabled automatically when Windows high contrast is on
     bool snapping = true;
     std::string workspace = "Editing";
+    bool multiViewports = true;  // panels can be dragged out to other monitors
+    // Main window placement (restored at startup).
+    int windowX = -1, windowY = -1, windowW = 0, windowH = 0;
+    bool windowMaximized = true;
 };
 
 struct PlaybackSettings {

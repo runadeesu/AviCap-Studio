@@ -511,11 +511,13 @@ void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
         ImGui::PushID(static_cast<int>(t.id));
         const ImVec2 a(hmin.x, l.y), b(hmax.x - 1, l.y + l.h);
         dl->AddRectFilled(a, b, l.audio ? IM_COL32(36, 42, 39, 255) : IM_COL32(38, 39, 47, 255));
-        // Target patch
+        // Target patch (sized to the track name, within limits)
         const bool targeted = l.track == targetV || l.track == targetA;
         const ImVec2 tp(a.x + 4, a.y + 4);
+        const std::string label = trackLabel(seq, l.track);
+        const float patchW = std::clamp(ImGui::CalcTextSize(label.c_str()).x + 8.0f, s * 1.6f, headerW_ - s * 3.6f - 12.0f);
         ImGui::SetCursorScreenPos(tp);
-        if (ImGui::InvisibleButton("##target", ImVec2(s * 1.6f, s))) {
+        if (ImGui::InvisibleButton("##target", ImVec2(patchW, s))) {
             const int pos = familyPos(seq, l.track);
             if (l.audio) app.targetAudioTrack = pos;
             else if (t.kind == TrackKind::Video) {
@@ -528,12 +530,13 @@ void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
             }
         }
         tooltip(tr("Target track for insert and paste"));
-        dl->AddRectFilled(tp, tp + ImVec2(s * 1.6f, s), targeted ? IM_COL32(70, 120, 200, 255) : IM_COL32(60, 60, 68, 255), 3.0f);
-        const std::string label = trackLabel(seq, l.track);
+        dl->AddRectFilled(tp, tp + ImVec2(patchW, s), targeted ? IM_COL32(70, 120, 200, 255) : IM_COL32(60, 60, 68, 255), 3.0f);
+        dl->PushClipRect(tp, tp + ImVec2(patchW, s), true);
         dl->AddText(tp + ImVec2(4, (s - ImGui::GetFontSize()) * 0.5f), IM_COL32(230, 230, 235, 255), label.c_str());
+        dl->PopClipRect();
 
         // Toggles
-        float x = tp.x + s * 1.6f + 6;
+        float x = tp.x + patchW + 6;
         auto toggleIcon = [&](const char* id, Icon on, Icon off, bool value, const char* tip) {
             ImGui::SetCursorScreenPos(ImVec2(x, tp.y));
             const bool pressed = iconButton(id, value ? on : off, tip, false, s);

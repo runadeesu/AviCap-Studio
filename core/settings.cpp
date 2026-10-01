@@ -39,7 +39,13 @@ std::string AppSettings::toJson() const {
                       {"showTooltips", ui.showTooltips},
                       {"highContrast", ui.highContrast},
                       {"snapping", ui.snapping},
-                      {"workspace", ui.workspace}};
+                      {"workspace", ui.workspace},
+                      {"multiViewports", ui.multiViewports},
+                      {"windowX", ui.windowX},
+                      {"windowY", ui.windowY},
+                      {"windowW", ui.windowW},
+                      {"windowH", ui.windowH},
+                      {"windowMaximized", ui.windowMaximized}};
     j["playback"] = {{"previewQuality", playback.previewQuality},
                      {"adaptiveQuality", playback.adaptiveQuality},
                      {"loop", playback.loop},
@@ -99,6 +105,12 @@ AppSettings AppSettings::fromJson(const std::string& text) {
         get(*it, "highContrast", s.ui.highContrast);
         get(*it, "snapping", s.ui.snapping);
         get(*it, "workspace", s.ui.workspace);
+        get(*it, "multiViewports", s.ui.multiViewports);
+        get(*it, "windowX", s.ui.windowX);
+        get(*it, "windowY", s.ui.windowY);
+        get(*it, "windowW", s.ui.windowW);
+        get(*it, "windowH", s.ui.windowH);
+        get(*it, "windowMaximized", s.ui.windowMaximized);
     }
     if (auto it = j.find("playback"); it != j.end()) {
         get(*it, "previewQuality", s.playback.previewQuality);
