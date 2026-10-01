@@ -59,7 +59,7 @@ public:
         ComPtr<IFileOpenDialog> dlg(raw);
         DWORD opts = 0;
         dlg->GetOptions(&opts);
-        dlg->SetOptions(opts | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | (multiple ? FOS_ALLOWMULTISELECT : 0));
+        dlg->SetOptions(opts | FOS_FORCEFILESYSTEM | FOS_FILEMUSTEXIST | (multiple ? static_cast<FILEOPENDIALOGOPTIONS>(FOS_ALLOWMULTISELECT) : FILEOPENDIALOGOPTIONS{0}));
         const std::wstring wtitle = utf8ToWide(title);
         dlg->SetTitle(wtitle.c_str());
         FilterSpec spec(filters);

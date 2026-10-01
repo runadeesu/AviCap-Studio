@@ -74,7 +74,7 @@ for f in "$STAGE"/*.exe "$STAGE"/*.dll; do
       msvcrt.dll|ws2_32.dll|bcrypt.dll|ncrypt.dll|crypt32.dll|secur32.dll|d3d11.dll|d3d12.dll|dxgi.dll|d3dcompiler_47.dll|\
       dwmapi.dll|imm32.dll|mfplat.dll|mf.dll|mfreadwrite.dll|mfuuid.dll|ole32.dll|avicap32.dll|winmm.dll|version.dll|\
       dwrite.dll|d2d1.dll|windowscodecs.dll|uuid.dll|propsys.dll|avrt.dll|mmdevapi.dll|setupapi.dll|cfgmgr32.dll|\
-      api-ms-win-*|ntdll.dll|psapi.dll|dbghelp.dll|comctl32.dll|uxtheme.dll|strmiids.dll|evr.dll) ;;
+      api-ms-win-*|ntdll.dll|psapi.dll|dbghelp.dll|comctl32.dll|uxtheme.dll|strmiids.dll|evr.dll|winhttp.dll) ;;
       *) [ -f "$STAGE/$dll" ] || { echo "ERROR: $(basename "$f") needs $dll which is not staged" >&2; missing=1; } ;;
     esac
   done
