@@ -17,11 +17,16 @@ namespace avc::cache {
 namespace fs = std::filesystem;
 
 std::string mediaKey(const MediaItem& media) {
-    // Use the live file identity so an edited source invalidates derived data
-    // even when the project still carries the import-time identity.
-    const FileIdentity id = fileIdentity(pathFromUtf8(media.path));
-    const uint64_t size = id.exists ? id.size : media.fileSize;
-    const int64_t mtime = id.exists ? id.modifiedNs : media.fileModifiedNs;
+    // The identity recorded in the project (refreshed by the app's media
+    // status checks and by relinking) avoids a file system call per lookup;
+    // items without one fall back to the live identity.
+    uint64_t size = media.fileSize;
+    int64_t mtime = media.fileModifiedNs;
+    if (size == 0 && mtime == 0) {
+        const FileIdentity id = fileIdentity(pathFromUtf8(media.path));
+        size = id.size;
+        mtime = id.modifiedNs;
+    }
     return media.path + "|" + std::to_string(size) + "|" + std::to_string(mtime);
 }
 

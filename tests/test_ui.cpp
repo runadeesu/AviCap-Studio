@@ -1,0 +1,301 @@
+// UI tests: the complete editor runs headless (real ImGui frames, real panels,
+// synthesized mouse/keyboard input) on the CPU render backend.
+
+#include <doctest.h>
+
+#include <chrono>
+#include <deque>
+#include <functional>
+#include <thread>
+
+#include <nlohmann/json.hpp>
+
+#include "core/file_io.h"
+#include "core/strings.h"
+#include "export/verify.h"
+#include "tests/test_support.h"
+#include "ui/app.h"
+#include "ui/commands.h"
+#include "ui/headless.h"
+
+using namespace avc;
+using namespace avc::ui;
+
+namespace {
+
+class ScriptedDialogs final : public IDialogs {
+public:
+    std::deque<std::vector<std::string>> open;
+    std::deque<std::string> save;
+    std::deque<std::string> folders;
+    std::vector<std::string> openFiles(const std::string&, const std::vector<FileFilter>&, bool) override {
+        if (open.empty()) return {};
+        auto r = open.front();
+        open.pop_front();
+        return r;
+    }
+    std::optional<std::string> saveFile(const std::string&, const std::vector<FileFilter>&, const std::string&, const std::string&) override {
+        if (save.empty()) return std::nullopt;
+        auto r = save.front();
+        save.pop_front();
+        return r;
+    }
+    std::optional<std::string> pickFolder(const std::string&) override {
+        if (folders.empty()) return std::nullopt;
+        auto r = folders.front();
+        folders.pop_front();
+        return r;
+    }
+};
+
+bool runUntil(HeadlessHost& host, const std::function<bool()>& cond, double timeoutSec = 60.0) {
+    const auto end = std::chrono::steady_clock::now() + std::chrono::milliseconds(static_cast<int>(timeoutSec * 1000));
+    while (std::chrono::steady_clock::now() < end) {
+        host.frame();
+        if (cond()) return true;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return false;
+}
+
+ImVec2 clipCenter(HeadlessHost& host, App& app, ClipId id) {
+    const Sequence* s = app.sequence();
+    const auto ref = s->findClip(id);
+    const Clip& c = *s->clip(id);
+    const auto* lane = host.window().timeline().laneForTrack(ref.track);
+    REQUIRE(lane);
+    const float x = host.window().timeline().timeToX(c.start + Time{c.duration.ticks / 2});
+    return ImVec2(x, lane->y + lane->h * 0.6f);
+}
+
+}  // namespace
+
+TEST_CASE("key chords parse, format and detect conflicts") {
+    CHECK(KeyChord::parse("Ctrl+Shift+K").toString() == "Ctrl+Shift+K");
+    CHECK(KeyChord::parse("ctrl+z") == KeyChord{ImGuiKey_Z, true, false, false});
+    CHECK(KeyChord::parse("Space").key == ImGuiKey_Space);
+    CHECK(KeyChord::parse("F5").key == ImGuiKey_F5);
+    CHECK(KeyChord::parse("Ctrl+,").key == ImGuiKey_Comma);
+    CHECK_FALSE(KeyChord::parse("Hyper+K").valid());
+    CHECK_FALSE(KeyChord::parse("").valid());
+
+    CommandRegistry reg;
+    int a = 0, b = 0;
+    reg.add({"x.a", "A", "Test", {{"avicap", "Ctrl+K"}, {"resolve", "Ctrl+B"}}, [&] { ++a; }, {}, false});
+    reg.add({"x.b", "B", "Test", {{"avicap", "B"}}, [&] { ++b; }, [] { return false; }, false});
+    CHECK(reg.shortcutText("x.a") == "Ctrl+K");
+    reg.setPreset("resolve");
+    CHECK(reg.shortcutText("x.a") == "Ctrl+B");
+    CHECK(reg.shortcutText("x.b") == "B");  // falls back to the avicap default
+    reg.setOverride("x.a", KeyChord::parse("B"));
+    CHECK(reg.conflicts(KeyChord::parse("B"), "x.a") == std::vector<std::string>{"x.b"});
+    auto saved = reg.saveOverrides();
+    CHECK(saved.at("x.a") == "B");
+    reg.resetAll();
+    CHECK(reg.shortcutText("x.a") == "Ctrl+B");
+    reg.loadOverrides(saved);
+    CHECK(reg.shortcutText("x.a") == "B");
+    CHECK(reg.run("x.a"));
+    CHECK_FALSE(reg.run("x.b"));  // disabled
+    CHECK(a == 1);
+    CHECK(b == 0);
+}
+
+TEST_CASE("editor UI golden path (headless)") {
+    const std::string video = test::testMedia("av_1080p30.mp4");
+    const std::string voice = test::testMedia("speech_silence.wav");
+    if (video.empty() || voice.empty()) {
+        MESSAGE("test media missing");
+        return;
+    }
+    auto dir = test::makeTempDir("ui_golden");
+    auto dialogs = std::make_unique<ScriptedDialogs>();
+    ScriptedDialogs* dlg = dialogs.get();
+    AppOptions opt;
+    opt.dataDir = dir / "data";
+    opt.headless = true;
+    opt.dialogs = std::move(dialogs);
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    app.snapping = false;  // deterministic drag deltas
+    HeadlessHost host(app, ImVec2(1600, 900));
+    host.frames(3);
+    CHECK(host.drawCalls() > 0);
+
+    // ---- import through the File > Import command (scripted file dialog)
+    dlg->open.push_back({video, voice});
+    CHECK(app.commands().run("file.import"));
+    REQUIRE(runUntil(host, [&] { return app.project().media.size() == 2 && app.importsInProgress() == 0; }));
+    const Sequence* seq = app.sequence();
+    REQUIRE(seq);
+    CHECK(seq->width == 1920);  // the empty sequence adopted the first video's format
+    CHECK(seq->height == 1080);
+    MediaId videoId = kInvalidId, voiceId = kInvalidId;
+    for (const auto& m : app.project().media) (m->info.hasVideo() ? videoId : voiceId) = m->id;
+
+    // ---- put the clip on the timeline (double-click behaviour) and the voice on A2
+    app.appendMediaAtPlayhead(videoId);
+    REQUIRE(app.sequence()->clipCount() == 2);  // linked video + audio
+    const int a2 = app.sequence()->audioTrackIndices().at(1);
+    REQUIRE(app.addMediaToTimeline(voiceId, Time::fromSeconds(1.0), -1, a2, false));
+    app.selection.clear();
+    host.window().timeline().setZoom(150.0, 0.0);  // 150 px per second
+    host.frames(3);
+
+    const int v1 = app.sequence()->visualTrackIndices().at(0);
+    auto v1Clips = [&] { return app.sequence()->tracks[static_cast<size_t>(v1)]->clips; };
+    REQUIRE(v1Clips().size() == 1);
+    const ClipId first = v1Clips()[0]->id;
+
+    // ---- click selects the clip and its linked audio
+    host.click(clipCenter(host, app, first));
+    CHECK(app.selection.clips.size() == 2);
+
+    // ---- razor tool: split V1 (and the linked audio) at 2 s
+    app.tool = Tool::Razor;
+    const auto* lane = host.window().timeline().laneForTrack(v1);
+    REQUIRE(lane);
+    host.click(ImVec2(host.window().timeline().timeToX(Time::fromSeconds(2.0)), lane->y + lane->h * 0.6f));
+    REQUIRE(v1Clips().size() == 2);
+    CHECK(v1Clips()[0]->duration == Time::fromSeconds(2.0));
+    app.tool = Tool::Select;
+
+    // ---- drag the right part 1 s to the right (move with live preview, one undo step)
+    const ClipId right = v1Clips()[1]->id;
+    const ImVec2 from = clipCenter(host, app, right);
+    host.drag(from, ImVec2(from.x + 150.0f, from.y));
+    REQUIRE(app.sequence()->clip(right));
+    CHECK(app.sequence()->clip(right)->start.seconds() == doctest::Approx(3.0).epsilon(0.02));
+    CHECK(app.doc().undoLabel() == "Move");
+
+    // ---- trim the tail of the left clip from 2.0 s to 1.5 s
+    const ClipId left = v1Clips()[0]->id;
+    host.drag(ImVec2(host.window().timeline().timeToX(Time::fromSeconds(2.0)) - 2, lane->y + lane->h * 0.6f),
+              ImVec2(host.window().timeline().timeToX(Time::fromSeconds(1.5)) - 2, lane->y + lane->h * 0.6f));
+    CHECK(app.sequence()->clip(left)->duration.seconds() == doctest::Approx(1.5).epsilon(0.03));
+
+    // ---- Ctrl+Z restores, Ctrl+Shift+Z re-applies
+    host.press(ImGuiKey_Z, true);
+    CHECK(app.sequence()->clip(left)->duration.seconds() == doctest::Approx(2.0).epsilon(0.01));
+    host.press(ImGuiKey_Z, true, true);
+    CHECK(app.sequence()->clip(left)->duration.seconds() == doctest::Approx(1.5).epsilon(0.03));
+
+    // ---- keyboard: Home, then Right x3 steps 3 frames; Ctrl+T adds a title at the playhead
+    host.press(ImGuiKey_Home);
+    for (int i = 0; i < 3; ++i) host.press(ImGuiKey_RightArrow);
+    CHECK(app.playhead() == Time::fromFrames(3, app.sequence()->frameRate));
+    host.press(ImGuiKey_T, true);
+    const Clip* title = app.primaryClip();
+    REQUIRE(title);
+    CHECK(title->kind == ClipKind::Text);
+
+    // ---- subtitles, effect and colour on the video clip
+    app.addSubtitleClip("こんにちは AviCap", Time::fromSeconds(0.5), Time::fromSeconds(2.0));
+    app.selection.clips = {left};
+    app.applyEffect("color.basic");
+    app.applyEffect("stylize.vignette");
+    CHECK(app.sequence()->clip(left)->effects.size() == 2);
+    app.applyTransition("cross-dissolve", Time::fromSeconds(0.5));
+
+    // ---- every panel renders without errors
+    UiState& ui = app.ui();
+    ui.showScopes = ui.showExport = ui.showHistory = ui.showMarkers = ui.showDiagnostics = true;
+    ui.showSettings = true;
+    app.addMarker();
+    host.frames(10);
+    ui.showSettings = false;
+    ui.showCommandPalette = true;
+    host.frames(3);
+    host.press(ImGuiKey_Escape);
+    ui.fullscreenViewer = true;
+    host.frames(3);
+    ui.fullscreenViewer = false;
+    host.frames(3);
+
+    // ---- preview renders the current frame on the preview thread
+    app.seek(Time::fromSeconds(1.0));
+    REQUIRE(runUntil(host, [&] {
+        const auto f = app.preview().latest();
+        return f.texture && f.time == Time::fromSeconds(1.0).snappedToFrame(app.sequence()->frameRate, Rounding::Down);
+    }));
+
+    // ---- save, then export through the queue and verify
+    const std::string projPath = pathToUtf8(dir / "ui_golden.avicap");
+    bool saved = false;
+    app.saveProjectAs(projPath, [&](bool ok) { saved = ok; });
+    REQUIRE(runUntil(host, [&] { return saved; }));
+    CHECK_FALSE(app.doc().dirty());
+    CHECK(app.project().name == "ui_golden");
+
+    exp::ExportSettings es = app.defaultExportSettings();
+    es.outputPath = pathToUtf8(dir / "ui_golden.mp4");
+    es.width = 640;
+    es.height = 360;
+    es.range = TimeRange{Time{0}, Time::fromSeconds(2.0)};
+    if (!enc::EncoderCatalog::instance().best(es.videoCodec, false)) es.videoCodec = enc::VideoCodec::MPEG4;
+    auto job = app.queueExport(es);
+    REQUIRE(job);
+    REQUIRE(runUntil(host, [&] {
+        const auto s = job->progress().state;
+        return s == exp::ExportState::Done || s == exp::ExportState::Failed;
+    }, 180.0));
+    CHECK_MESSAGE(job->progress().state == exp::ExportState::Done, job->progress().message);
+    CHECK_MESSAGE(job->report().ok, job->report().summary());
+
+    // ---- reopen the saved project
+    const size_t clips = app.sequence()->clipCount();
+    app.newProject("Scratch", ProjectSettings{});
+    CHECK(app.sequence()->clipCount() == 0);
+    app.openProject(projPath);
+    REQUIRE(runUntil(host, [&] { return !app.busyLoading() && app.sequence() && app.sequence()->clipCount() == clips; }));
+    CHECK(app.projectPath() == projPath);
+    host.frames(5);
+}
+
+TEST_CASE("unsaved-changes guard and crash recovery through the UI") {
+    auto dir = test::makeTempDir("ui_recovery");
+    {
+        AppOptions opt;
+        opt.dataDir = dir;
+        opt.headless = true;
+        opt.loadSettings = false;
+        App app(std::move(opt));
+        HeadlessHost host(app);
+        host.frames(2);
+        app.addTextClip("Recover me");
+        app.autosave().flush();
+        // Simulate a crash: the journal stays because the App is not torn down cleanly.
+        // (Copy the autosave directory before the clean shutdown removes it.)
+        std::filesystem::copy(dir / "Autosave", dir / "Autosave.crash", std::filesystem::copy_options::recursive);
+        bool ran = false;
+        app.guardUnsaved([&] { ran = true; });
+        CHECK_FALSE(ran);
+        CHECK(app.ui().unsavedPrompt);
+        app.ui().unsavedPrompt = false;
+    }
+    std::filesystem::remove_all(dir / "Autosave");
+    std::filesystem::rename(dir / "Autosave.crash", dir / "Autosave");
+    // The "crashed" instance was this test process: mark its journal as orphaned.
+    for (const auto& e : std::filesystem::directory_iterator(dir / "Autosave")) {
+        const std::string name = pathToUtf8(e.path().filename());
+        if (name.size() < 10 || name.substr(name.size() - 10) != ".meta.json") continue;
+        auto j = nlohmann::json::parse(*readFileBytes(e.path()));
+        j["pid"] = 0;
+        REQUIRE(writeFileAtomic(e.path(), j.dump()));
+    }
+    AppOptions opt;
+    opt.dataDir = dir;
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app);
+    REQUIRE(app.recoveryCandidates().size() == 1);
+    CHECK(app.ui().showRecovery);
+    app.recoverProject(app.recoveryCandidates().front());
+    REQUIRE(runUntil(host, [&] { return !app.busyLoading() && app.sequence() && app.sequence()->clipCount() == 1; }));
+    bool found = false;
+    for (const auto& t : app.sequence()->tracks)
+        for (const auto& c : t->clips) found |= c->text == "Recover me";
+    CHECK(found);
+    CHECK(app.doc().dirty());
+}

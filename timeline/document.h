@@ -78,6 +78,9 @@ public:
     [[nodiscard]] uint64_t revision() const noexcept { return revision_; }
     [[nodiscard]] bool dirty() const noexcept { return current_ != savedRoot_; }
     void markSaved() { savedRoot_ = current_; }
+    // Marks a specific snapshot as the saved state (background saves: edits
+    // made while the file was being written keep the document dirty).
+    void markSaved(ProjectPtr root) { savedRoot_ = std::move(root); }
     void markDirty() { savedRoot_ = nullptr; }
 
     // Replaces the project (open/new/recover); clears history.
