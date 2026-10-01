@@ -7,16 +7,18 @@
 #include "decode/video_decoder.h"
 #include "media/ffmpeg_util.h"
 
+// d3d11.h must be included outside extern "C": the Windows SDK version
+// declares C++ operator overloads (MSVC rejects them with C linkage).
+#if defined(_WIN32)
+#include <d3d11.h>
+#endif
+
 extern "C" {
 #include <libavutil/hwcontext.h>
 #if defined(_WIN32)
 #include <libavutil/hwcontext_d3d11va.h>
 #endif
 }
-
-#if defined(_WIN32)
-#include <d3d11.h>
-#endif
 
 namespace avc {
 

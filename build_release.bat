@@ -49,7 +49,8 @@ cmake -S "%ROOT%" -B "%BUILD%" -G Ninja -DCMAKE_BUILD_TYPE=Release ^
   -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake" ^
   -DVCPKG_TARGET_TRIPLET=x64-windows -DVCPKG_INSTALLED_DIR="%ROOT%\build\vcpkg_installed" ^
   -DAVICAP_BUILD_APP=ON -DAVICAP_BUILD_TESTS=ON || exit /b 1
-cmake --build "%BUILD%" || exit /b 1
+rem -k 0: report every compile error in one run instead of stopping at the first.
+cmake --build "%BUILD%" -- -k 0 || exit /b 1
 
 if %SKIP_TESTS%==0 (
   echo == Running unit tests

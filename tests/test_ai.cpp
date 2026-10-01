@@ -11,6 +11,7 @@
 using namespace avc;
 
 namespace {
+constexpr double kPi = 3.14159265358979323846;  // M_PI is not standard (MSVC)
 Time S(double s) { return Time::fromSeconds(s); }
 
 std::vector<float> toneWithGaps(int rate, std::initializer_list<std::pair<double, double>> on, double total) {
@@ -20,8 +21,8 @@ std::vector<float> toneWithGaps(int rate, std::initializer_list<std::pair<double
         bool active = false;
         for (const auto& [a, b] : on) active |= t >= a && t < b;
         // Speech-like tone plus a faint noise floor everywhere.
-        x[i] = (active ? 0.4f * static_cast<float>(std::sin(2 * M_PI * 220 * t)) : 0.0f) +
-               0.002f * static_cast<float>(std::sin(2 * M_PI * 3001 * t) * std::sin(2 * M_PI * 17 * t));
+        x[i] = (active ? 0.4f * static_cast<float>(std::sin(2 * kPi * 220 * t)) : 0.0f) +
+               0.002f * static_cast<float>(std::sin(2 * kPi * 3001 * t) * std::sin(2 * kPi * 17 * t));
     }
     return x;
 }
@@ -88,7 +89,7 @@ TEST_CASE("highlights pick the loudest moments") {
     for (size_t i = 0; i < x.size(); ++i) {
         const double t = static_cast<double>(i) / rate;
         const float amp = (t >= 12 && t < 14) ? 0.8f : (t >= 4 && t < 5) ? 0.5f : 0.05f;
-        x[i] = amp * static_cast<float>(std::sin(2 * M_PI * 300 * t));
+        x[i] = amp * static_cast<float>(std::sin(2 * kPi * 300 * t));
     }
     auto h = ai::findHighlightsInSamples(x.data(), x.size(), rate, 2, 1.0);
     REQUIRE(h.size() == 2);
