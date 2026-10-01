@@ -1,6 +1,6 @@
 set(_platform_libs "")
 if(WIN32)
-    set(_platform_libs shell32 ole32 psapi)
+    set(_platform_libs shell32 ole32 psapi winhttp crypt32)
 endif()
 
 avicap_add_module(core
@@ -15,6 +15,7 @@ avicap_add_module(core
         settings.cpp
         i18n.cpp
         process.cpp
+        net.cpp
     DEPS
         AviCap::json
         ${_platform_libs})

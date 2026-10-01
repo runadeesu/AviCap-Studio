@@ -244,3 +244,88 @@ TEST_CASE("plan: timeline description never contains file paths") {
     CHECK(j.find(test::testMediaDir().string()) == std::string::npos);
     CHECK(j.find('/') == std::string::npos);
 }
+
+// ------------------------------------------------------------------ cloud assistant (mock transport, no network)
+
+#include "ai/cloud.h"
+
+TEST_CASE("cloud plan: request contents, privacy and response parsing") {
+    ai::CloudOptions opt;
+    opt.apiKey = "test-key";
+    const ai::Json timeline = {{"duration_sec", 30.0}, {"tracks", ai::Json::array({{{"name", "V1"}, {"clips", ai::Json::array({{{"name", "clip.mp4"}}})}}})}};
+
+    std::string sentBody;
+    std::vector<std::pair<std::string, std::string>> sentHeaders;
+    std::string sentUrl;
+    auto transport = [&](const HttpRequest& r, const CancelToken&) {
+        sentBody = r.body;
+        sentHeaders = r.headers;
+        sentUrl = r.url;
+        // Structured output: the plan arrives as JSON text in a text block.
+        const ai::Json plan = {{"steps", ai::Json::array({{{"op", "delete_range"}, {"start", 1.0}, {"end", 2.5}},
+                                                          {{"op", "apply_effect"}, {"effect", "color.basic"}, {"target", "all_video"},
+                                                           {"params", ai::Json::array({{{"name", "saturation"}, {"value", 0.0}}})}}})},
+                               {"notes", ai::Json::array({"字幕の色は変更できません"})}};
+        const ai::Json resp = {{"model", "claude-opus-5-5"},
+                               {"stop_reason", "end_turn"},
+                               {"content", ai::Json::array({{{"type", "thinking"}, {"thinking", ""}}, {{"type", "text"}, {"text", plan.dump()}}})}};
+        return HttpResponse{200, resp.dump(), {}};
+    };
+    auto p = ai::requestCloudPlan("1秒から2.5秒を削除して白黒に", timeline, opt, transport);
+    REQUIRE(p);
+    REQUIRE(p->steps.size() == 2);
+    CHECK(p->source == "claude-opus-5-5");
+    CHECK(p->steps[0].op == "delete_range");
+    CHECK(p->steps[1].args["params"]["saturation"].get<double>() == doctest::Approx(0.0));
+    REQUIRE(p->notes.size() == 1);
+
+    // The request: model, structured output schema, fallbacks, headers, endpoint.
+    CHECK(sentUrl == "https://api.anthropic.com/v1/messages");
+    const ai::Json body = ai::Json::parse(sentBody);
+    CHECK(body["model"] == "claude-opus-5-5");
+    CHECK(body["output_config"]["format"]["type"] == "json_schema");
+    CHECK(body["output_config"]["format"]["schema"]["additionalProperties"] == false);
+    CHECK(body["fallbacks"] == "default");
+    CHECK_FALSE(body.contains("thinking"));
+    bool key = false, version = false, beta = false;
+    for (const auto& [k, v] : sentHeaders) {
+        key |= k == "x-api-key" && v == "test-key";
+        version |= k == "anthropic-version" && v == "2023-06-01";
+        beta |= k == "anthropic-beta" && v == "server-side-fallback-2026-07-01";
+    }
+    CHECK(key);
+    CHECK(version);
+    CHECK(beta);
+    // Only the instruction and the timeline description are sent.
+    const std::string userText = body["messages"][0]["content"][0]["text"];
+    CHECK(userText.find("1秒から2.5秒を削除して白黒に") != std::string::npos);
+    CHECK(userText.find("clip.mp4") != std::string::npos);
+    // The system prompt is stable (cacheable) and lists the effects.
+    CHECK(ai::cloudSystemPrompt() == ai::cloudSystemPrompt());
+    CHECK(ai::cloudSystemPrompt().find("color.basic") != std::string::npos);
+}
+
+TEST_CASE("cloud plan: errors, refusals and invalid plans are reported, never applied") {
+    using ai::Json;
+    CHECK_FALSE(ai::parseCloudResponse(401, R"({"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}})"));
+    auto e = ai::parseCloudResponse(401, R"({"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}})");
+    CHECK(e.errorMessage().find("invalid x-api-key") != std::string::npos);
+    CHECK_FALSE(ai::parseCloudResponse(200, R"({"stop_reason":"refusal","content":[]})"));
+    CHECK_FALSE(ai::parseCloudResponse(200, R"({"stop_reason":"max_tokens","content":[{"type":"text","text":"{\"steps\":["}]})"));
+    CHECK_FALSE(ai::parseCloudResponse(200, "not json"));
+    // Unknown operations or effects are rejected by the same validation as local plans.
+    const Json bad = {{"stop_reason", "end_turn"},
+                      {"content", Json::array({{{"type", "text"}, {"text", R"({"steps":[{"op":"apply_effect","effect":"no.such"}],"notes":[]})"}}})}};
+    CHECK_FALSE(ai::parseCloudResponse(200, bad.dump()));
+    // Transport failures and missing keys.
+    ai::CloudOptions opt;
+    CHECK_FALSE(ai::requestCloudPlan("x", Json::object(), opt, [](const HttpRequest&, const CancelToken&) { return HttpResponse{}; }));
+    opt.apiKey = "k";
+    auto t = ai::requestCloudPlan("x", Json::object(), opt, [](const HttpRequest&, const CancelToken&) {
+        HttpResponse r;
+        r.error = "timeout";
+        return r;
+    });
+    REQUIRE_FALSE(t);
+    CHECK(t.errorMessage() == "timeout");
+}

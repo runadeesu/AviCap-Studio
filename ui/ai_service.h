@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "ai/analysis.h"
+#include "ai/cloud.h"
 #include "ai/plan.h"
 #include "cache/cache.h"
 #include "core/jobs.h"
@@ -91,6 +92,21 @@ public:
     void discardPlan();
     [[nodiscard]] ai::Plan enabledPlan() const;
 
+    // ------------------------------------------------------------ cloud assistant (opt-in)
+    // Empty when the Claude provider can be used; otherwise the reason (UI language).
+    [[nodiscard]] std::string cloudBlocker() const;
+    [[nodiscard]] bool useCloud() const;  // provider is Claude and nothing blocks it
+    [[nodiscard]] std::string apiKey() const;  // ANTHROPIC_API_KEY, stored key or session key
+    [[nodiscard]] bool apiKeyFromEnvironment() const;
+    [[nodiscard]] bool hasStoredKey() const;
+    Status setApiKey(const std::string& key, bool remember);  // remember = DPAPI on this PC
+    void forgetApiKey();
+    void makeCloudPlan(const std::string& prompt);
+    [[nodiscard]] bool cloudBusy() const { return cloudJob_.valid() && !cloudJob_.finished(); }
+    void cancelCloud() { cloudJob_.cancel(); }
+    HttpTransport transport = [](const HttpRequest& r, const CancelToken& c) { return httpRequest(r, c); };  // replaceable in tests
+    bool transportAvailable = httpAvailable();
+
     // Shades the silence that would be cut on the timeline (kept up to date
     // with edits). Returns nullptr when nothing should be drawn.
     bool showSilenceOverlay = false;
@@ -111,6 +127,8 @@ private:
     std::map<std::string, ai::SceneResult> scenes_;
     std::map<std::string, std::vector<ai::Highlight>> highlights_;
     PlanState plan_;
+    JobHandle cloudJob_;
+    std::string sessionKey_;
     TimelineOverlay overlay_;
     uint64_t overlayRevision_ = ~0ull;
     size_t overlayResults_ = ~size_t{0};

@@ -467,3 +467,71 @@ TEST_CASE("sound library: scan, preview, legal import and timeline placement") {
     CHECK(app.sequence()->tracks[static_cast<size_t>(audio[2])]->clips.size() == 1);
     host.frames(3);  // the panel draws the library
 }
+
+TEST_CASE("AI tools: cloud assistant needs consent and goes through preview/apply") {
+    const std::string video = test::testMedia("av_1080p30.mp4");
+    if (video.empty()) {
+        MESSAGE("test media missing");
+        return;
+    }
+    auto dir = test::makeTempDir("ui_cloud");
+    AppOptions opt;
+    opt.dataDir = dir / "data";
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app, ImVec2(1500, 900));
+    app.importFiles({video});
+    REQUIRE(runUntil(host, [&] { return app.project().media.size() == 1 && app.importsInProgress() == 0; }));
+    app.appendMediaAtPlayhead(app.project().media[0]->id);
+    const double before = app.sequence()->duration().seconds();
+
+    AiService& ai = app.ai();
+    int calls = 0;
+    std::string sentBody;
+    ai.transportAvailable = true;
+    ai.transport = [&](const HttpRequest& r, const CancelToken&) {
+        ++calls;
+        sentBody = r.body;
+        const nlohmann::json plan = {{"steps", nlohmann::json::array({{{"op", "delete_range"}, {"start", 0.0}, {"end", 1.0}}})},
+                                     {"notes", nlohmann::json::array()}};
+        const nlohmann::json resp = {{"model", "claude-opus-5-5"},
+                                     {"stop_reason", "end_turn"},
+                                     {"content", nlohmann::json::array({{{"type", "text"}, {"text", plan.dump()}}})}};
+        return HttpResponse{200, resp.dump(), {}};
+    };
+    app.settings().ai.assistantProvider = "anthropic";
+    app.settings().ai.cloudConsent = false;
+    app.settings().privacy.allowNetwork = true;
+    app.ui().showAi = true;
+    host.frames(2);  // the consent box is drawn
+
+    // Without consent nothing is sent.
+    CHECK_FALSE(ai.useCloud());
+    ai.makeCloudPlan("最初の1秒を消して");
+    host.frames(2);
+    CHECK(calls == 0);
+    CHECK_FALSE(ai.planState().error.empty());
+
+    app.settings().ai.cloudConsent = true;
+    if (!ai.apiKeyFromEnvironment()) {
+        CHECK_FALSE(ai.useCloud());  // no key yet
+        REQUIRE(ai.setApiKey("  test-key\n", false));
+    }
+    CHECK(ai.useCloud());
+    ai.makeCloudPlan("最初の1秒を消して");
+    REQUIRE(runUntil(host, [&] { return !ai.cloudBusy() && !ai.planState().plan.steps.empty(); }));
+    CHECK(calls == 1);
+    CHECK(ai.planState().plan.source == "claude-opus-5-5");
+    // The request never contains file paths.
+    CHECK(sentBody.find(pathToUtf8(pathFromUtf8(video).parent_path())) == std::string::npos);
+    CHECK(sentBody.find("av_1080p30.mp4") != std::string::npos);
+
+    ai.previewPlan();
+    REQUIRE(app.planPreview());
+    CHECK(app.sequence()->duration().seconds() == doctest::Approx(before));
+    ai.applyPlan();
+    CHECK(app.sequence()->duration().seconds() == doctest::Approx(before - 1.0).epsilon(0.01));
+    CHECK(app.doc().undoLabel() == "AI Edit");
+    host.frames(2);
+}

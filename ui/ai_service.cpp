@@ -7,6 +7,7 @@
 
 #include "core/i18n.h"
 #include "core/log.h"
+#include "core/platform.h"
 #include "core/strings.h"
 #include "export/export_settings.h"
 #include "ui/app.h"
@@ -130,7 +131,9 @@ AiService::AiService(App& app, cache::CacheStore* store) : app_(app), store_(sto
 AiService::~AiService() {
     *alive_ = false;
     job_.cancel();
+    cloudJob_.cancel();
     job_.wait();
+    cloudJob_.wait();
 }
 
 std::string AiService::cacheKey(AnalysisKind kind, const MediaItem& m) const {
@@ -601,6 +604,94 @@ void AiService::applyPlan() {
     }
     app_.notify(LogLevel::Info, std::string(tr("AI edit applied")) + " (" + std::to_string(p.steps.size()) + ")", tr("Undo"),
                 [this] { app_.undo(); });
+}
+
+// ------------------------------------------------------------------ cloud assistant
+
+namespace {
+fs::path keyFile(const App& app) { return app.dataDir() / "secrets" / "anthropic.key"; }
+}  // namespace
+
+std::string AiService::cloudBlocker() const {
+    const AppSettings& s = app_.settings();
+    if (!transportAvailable) return tr("The cloud assistant is only available in the Windows version.");
+    if (!s.privacy.allowNetwork) return tr("Network access is turned off in Settings > AI & Privacy.");
+    if (!s.ai.cloudConsent) return tr("Consent is required before anything is sent.");
+    if (apiKey().empty()) return tr("Enter an Anthropic API key.");
+    return {};
+}
+
+bool AiService::useCloud() const { return app_.settings().ai.assistantProvider == "anthropic" && cloudBlocker().empty(); }
+
+bool AiService::apiKeyFromEnvironment() const {
+    auto env = getEnv("ANTHROPIC_API_KEY");
+    return env && !env->empty();
+}
+
+std::string AiService::apiKey() const {
+    if (auto env = getEnv("ANTHROPIC_API_KEY"); env && !env->empty()) return *env;
+    if (!sessionKey_.empty()) return sessionKey_;
+    if (auto k = loadUserSecret(keyFile(app_))) return *k;
+    return {};
+}
+
+bool AiService::hasStoredKey() const {
+    std::error_code ec;
+    return fs::exists(keyFile(app_), ec);
+}
+
+Status AiService::setApiKey(const std::string& key, bool remember) {
+    std::string k = key;
+    while (!k.empty() && (k.back() == ' ' || k.back() == '\n' || k.back() == '\r')) k.pop_back();
+    while (!k.empty() && k.front() == ' ') k.erase(k.begin());
+    if (k.empty()) return Status::error(tr("Enter an Anthropic API key."));
+    sessionKey_ = k;
+    if (remember) return saveUserSecret(keyFile(app_), k);
+    return Status::ok();
+}
+
+void AiService::forgetApiKey() {
+    sessionKey_.clear();
+    std::error_code ec;
+    fs::remove(keyFile(app_), ec);
+}
+
+void AiService::makeCloudPlan(const std::string& prompt) {
+    if (cloudBusy()) return;
+    discardPlan();
+    plan_ = {};
+    plan_.prompt = prompt;
+    if (const std::string why = cloudBlocker(); !why.empty()) {
+        plan_.error = why;
+        return;
+    }
+    const Sequence* seq = app_.sequence();
+    if (!seq) return;
+    ai::CloudOptions opt;
+    opt.apiKey = apiKey();
+    if (!app_.settings().ai.anthropicModel.empty()) opt.model = app_.settings().ai.anthropicModel;
+    // Built on the UI thread: names, times and texts only (no paths, no media).
+    const ai::Json timeline = ai::describeTimeline(app_.project(), seq->id, app_.playhead(), app_.selection.clips);
+    auto transport_ = transport;
+    std::weak_ptr<bool> alive = alive_;
+    App* app = &app_;
+    AVC_INFO("ai", "sending an editing request to the cloud assistant ({})", opt.model);
+    cloudJob_ = Jobs::io().submit("Cloud assistant", JobPriority::High, [=, this](JobContext& ctx) {
+        auto r = ai::requestCloudPlan(prompt, timeline, opt, transport_, ctx.token());
+        app->post([=, this] {
+            if (!alive.lock()) return;
+            if (!r) {
+                plan_.error = std::string(tr("The cloud assistant failed")) + ": " + r.errorMessage();
+                AVC_WARN("ai", "cloud assistant failed: {}", r.errorMessage());
+                return;
+            }
+            plan_.plan = *r;
+            plan_.enabled.assign(plan_.plan.steps.size(), true);
+            if (plan_.plan.steps.empty() && plan_.plan.notes.empty())
+                plan_.error = tr("No editing instructions were recognised. Try one of the examples.");
+            app_.wake();
+        });
+    });
 }
 
 void AiService::discardPlan() {

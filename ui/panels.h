@@ -247,9 +247,12 @@ public:
 
 private:
     void drawPlan(App& app);
+    void drawProvider(App& app);
     void drawSilence(App& app);
     void drawAnalysis(App& app);
     char prompt_[2048] = {};
+    char keyBuf_[256] = {};
+    bool rememberKey_ = true;
     float sensitivity_ = 0.5f;
 };
 

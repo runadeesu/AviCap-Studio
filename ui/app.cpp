@@ -248,7 +248,7 @@ bool App::animating() const {
     if (playing() || importing_ > 0 || saving_ > 0 || loading_) return true;
     if (exports_ && exports_->busy()) return true;
     if (assets_ && assets_->pendingJobs() > 0) return true;
-    if (ai_ && ai_->busy()) return true;
+    if (ai_ && (ai_->busy() || ai_->cloudBusy())) return true;
     if (sounds_ && (sounds_->scanning() || sounds_->previewer().playing())) return true;
     return !proxyRequested_.empty();
 }

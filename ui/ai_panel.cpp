@@ -9,6 +9,8 @@
 #include <imgui.h>
 
 #include "core/i18n.h"
+#include "core/net.h"
+#include "core/platform.h"
 #include "ui/panels.h"
 #include "ui/widgets.h"
 
@@ -95,15 +97,30 @@ void AiPanel::drawPlan(App& app) {
     }
     ImGui::Spacing();
 
+    drawProvider(app);
+
     const bool hasPrompt = prompt_[0] != 0;
-    ImGui::BeginDisabled(!hasPrompt);
-    if (iconTextButton("##makeplan", Icon::Check, tr("Create Plan")) || (submit && hasPrompt)) ai.makePlan(prompt_);
+    const bool cloud = ai.useCloud();
+    ImGui::BeginDisabled(!hasPrompt || ai.cloudBusy());
+    if (iconTextButton("##makeplan", Icon::Check, cloud ? tr("Create Plan with Claude") : tr("Create Plan")) || (submit && hasPrompt)) {
+        if (cloud) ai.makeCloudPlan(prompt_);
+        else ai.makePlan(prompt_);
+    }
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button(tr("Clear"))) {
         prompt_[0] = 0;
         ai.discardPlan();
         st = {};
+    }
+    if (ai.cloudBusy()) {
+        ImGui::SameLine();
+        ImGui::TextDisabled("%s", tr("Asking Claude..."));
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr("Cancel"))) ai.cancelCloud();
+    } else if (cloud && !st.error.empty() && hasPrompt) {
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr("Use the offline rules instead"))) ai.makePlan(prompt_);
     }
 
     if (!st.error.empty()) {
@@ -160,6 +177,89 @@ void AiPanel::drawPlan(App& app) {
             ImGui::PopStyleColor();
         }
     }
+}
+
+// ------------------------------------------------------------------ provider (local / Claude)
+
+void AiPanel::drawProvider(App& app) {
+    AiService& ai = app.ai();
+    AppSettings& set = app.settings();
+    bool cloudSel = set.ai.assistantProvider == "anthropic";
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(tr("Assistant:"));
+    ImGui::SameLine();
+    if (ImGui::RadioButton(tr("Offline rules"), !cloudSel)) {
+        set.ai.assistantProvider = "local";
+        app.saveSettings();
+    }
+    tooltip(tr("Understands common instructions. Works without internet; nothing is sent."));
+    ImGui::SameLine();
+    if (ImGui::RadioButton(tr("Claude (cloud, opt-in)"), cloudSel)) {
+        set.ai.assistantProvider = "anthropic";
+        app.saveSettings();
+    }
+    tooltip(tr("Understands free-form instructions. Sends your instruction and a text description of the timeline to Anthropic."));
+    cloudSel = set.ai.assistantProvider == "anthropic";
+    if (!cloudSel) return;
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.16f, 0.17f, 0.22f, 1.0f));
+    ImGui::BeginChild("##cloud", ImVec2(0, 0), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders);
+    if (!ai.transportAvailable) {
+        ImGui::TextWrapped("%s", tr("The cloud assistant is only available in the Windows version."));
+    } else if (!set.ai.cloudConsent) {
+        ImGui::TextWrapped("%s", tr("Before using Claude, please check what is sent:"));
+        ImGui::BulletText("%s", tr("Your instruction text"));
+        ImGui::BulletText("%s", tr("A text description of the timeline: track names, clip file names and times, title/subtitle text, markers"));
+        ImGui::PushStyleColor(ImGuiCol_Text, kOkColor);
+        ImGui::BulletText("%s", tr("Never sent: video, audio, images, file paths"));
+        ImGui::PopStyleColor();
+        ImGui::TextWrapped("%s", tr("Data is sent to api.anthropic.com over HTTPS using your own API key and is handled under Anthropic's terms. Usage is billed to your Anthropic account."));
+        if (ImGui::Button(tr("I agree - enable Claude"))) {
+            set.ai.cloudConsent = true;
+            set.privacy.allowNetwork = true;
+            app.saveSettings();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(tr("Use offline rules"))) {
+            set.ai.assistantProvider = "local";
+            app.saveSettings();
+        }
+    } else if (!set.privacy.allowNetwork) {
+        ImGui::TextWrapped("%s", tr("Network access is turned off in Settings > AI & Privacy."));
+        if (ImGui::Button(tr("Allow network access"))) {
+            set.privacy.allowNetwork = true;
+            app.saveSettings();
+        }
+    } else if (ai.apiKey().empty()) {
+        ImGui::TextWrapped("%s", tr("Enter your Anthropic API key (from the Claude Console)."));
+        ImGui::SetNextItemWidth(-1);
+        ImGui::InputTextWithHint("##apikey", "sk-ant-...", keyBuf_, sizeof keyBuf_, ImGuiInputTextFlags_Password);
+        ImGui::Checkbox(tr("Remember on this PC (encrypted for your Windows account)"), &rememberKey_);
+        ImGui::BeginDisabled(keyBuf_[0] == 0);
+        if (ImGui::Button(tr("Use this key"))) {
+            Status s = ai.setApiKey(keyBuf_, rememberKey_);
+            std::memset(keyBuf_, 0, sizeof keyBuf_);
+            if (!s) app.notify(LogLevel::Warning, s.message());
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr("Get an API key"))) openWithShell("https://platform.claude.com/");
+    } else {
+        ImGui::TextDisabled("%s: %s  /  %s: api.anthropic.com", tr("Model"), set.ai.anthropicModel.c_str(), tr("Sent to"));
+        if (ai.apiKeyFromEnvironment()) {
+            ImGui::TextDisabled("%s", tr("Using the key from the ANTHROPIC_API_KEY environment variable."));
+        } else if (ImGui::SmallButton(tr("Forget the API key"))) {
+            ai.forgetApiKey();
+        }
+        ImGui::SameLine();
+        if (ImGui::SmallButton(tr("Withdraw consent"))) {
+            set.ai.cloudConsent = false;
+            set.ai.assistantProvider = "local";
+            app.saveSettings();
+        }
+    }
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
 }
 
 // ------------------------------------------------------------------ silence
