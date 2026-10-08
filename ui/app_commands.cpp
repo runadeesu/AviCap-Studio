@@ -142,17 +142,20 @@ void App::registerCommands() {
 
     // ---------------------------------------------------------------- View
     auto toggle = [](bool& b) { return [&b] { b = !b; }; };
-    add("view.media", "Media", "View", {{"avicap", "Shift+1"}}, toggle(ui_.showMedia));
+    add("view.library", "Library", "View", {}, toggle(ui_.showLibrary));
+    add("view.media", "Media", "View", {{"avicap", "Shift+1"}}, [this] { openLibrary("media"); });
     add("view.viewer", "Viewer", "View", {{"avicap", "Shift+2"}}, toggle(ui_.showViewer));
     add("view.timeline", "Timeline", "View", {{"avicap", "Shift+3"}}, toggle(ui_.showTimeline));
     add("view.inspector", "Inspector", "View", {{"avicap", "Shift+4"}}, toggle(ui_.showInspector));
-    add("view.effects", "Effects", "View", {{"avicap", "Shift+5"}}, toggle(ui_.showEffects));
+    add("view.effects", "Effects", "View", {{"avicap", "Shift+5"}}, [this] { openLibrary("effects"); });
+    add("view.transitions", "Transitions", "View", {}, [this] { openLibrary("transitions"); });
+    add("view.text", "Text", "View", {}, [this] { openLibrary("text"); });
     add("view.color", "Color", "View", {{"avicap", "Shift+6"}}, toggle(ui_.showColor));
     add("view.mixer", "Audio Mixer", "View", {{"avicap", "Shift+7"}}, toggle(ui_.showMixer));
     add("view.scopes", "Scopes", "View", {{"avicap", "Shift+8"}}, toggle(ui_.showScopes));
     add("view.export", "Export Queue", "View", {{"avicap", "Shift+9"}}, toggle(ui_.showExport));
-    add("view.sounds", "Sounds", "View", {}, toggle(ui_.showSounds));
-    add("view.ai", "AI Tools", "View", {}, toggle(ui_.showAi));
+    add("view.sounds", "Sounds", "View", {}, [this] { openLibrary("audio"); });
+    add("view.ai", "AI Tools", "View", {}, [this] { openLibrary("ai"); });
     add("view.markers", "Markers", "View", {}, toggle(ui_.showMarkers));
     add("view.history", "History", "View", {}, toggle(ui_.showHistory));
     add("view.diagnostics", "Diagnostics", "View", {{"avicap", "Ctrl+Shift+F12"}}, toggle(ui_.showDiagnostics));

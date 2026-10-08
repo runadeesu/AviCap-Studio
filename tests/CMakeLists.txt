@@ -27,3 +27,10 @@ add_test(NAME unit_tests COMMAND avicap_tests --exclude-test-case-glob=*[stress]
 add_test(NAME stress_tests COMMAND avicap_tests --test-case-glob=*[stress]*)
 set_tests_properties(stress_tests PROPERTIES LABELS "stress" TIMEOUT 1800)
 set_tests_properties(unit_tests PROPERTIES TIMEOUT 900)
+
+# UI screenshot tool (headless, software rasterized).
+if(AVICAP_BUILD_UI)
+    add_executable(avicap_uishots uishots.cpp test_support.cpp)
+    target_link_libraries(avicap_uishots PRIVATE avicap_options ${_modules})
+    target_compile_definitions(avicap_uishots PRIVATE AVICAP_TEST_MEDIA_DIR="${AVICAP_TEST_MEDIA_DIR}")
+endif()

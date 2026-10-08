@@ -175,10 +175,13 @@ private:
 
 class EffectsPanel {
 public:
+    enum class Mode { Effects, Transitions };
     void draw(App& app);
+    void draw(App& app, Mode mode);
 
 private:
     char search_[96] = {};
+    std::string category_ = "All";
 };
 
 class ColorPanel {
@@ -273,6 +276,21 @@ private:
     std::vector<SoundItem> downloads_;
     double lastDownloadScan_ = -100;
     std::string importMessage_;
+};
+
+// Left-hand library: icon rail + media / audio / text / effects /
+// transitions / AI pages.
+class LibraryPanel {
+public:
+    void draw(App& app);
+
+private:
+    void drawAudio(App& app);
+    void drawText(App& app);
+    MediaPanel media_;
+    SoundsPanel sounds_;
+    EffectsPanel effects_;
+    AiPanel ai_;
 };
 
 class SettingsWindow {

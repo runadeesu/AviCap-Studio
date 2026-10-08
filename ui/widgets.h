@@ -10,20 +10,21 @@
 
 #include "audio/mixer.h"
 #include "timeline/model.h"
+#include "ui/style.h"
 
 namespace avc::ui {
 
 namespace col {
-inline constexpr ImU32 kVideo = IM_COL32(61, 111, 182, 255);
-inline constexpr ImU32 kAudio = IM_COL32(52, 140, 92, 255);
-inline constexpr ImU32 kText = IM_COL32(140, 92, 196, 255);
-inline constexpr ImU32 kSubtitle = IM_COL32(40, 150, 160, 255);
-inline constexpr ImU32 kSolid = IM_COL32(110, 110, 120, 255);
-inline constexpr ImU32 kAdjustment = IM_COL32(196, 128, 52, 255);
-inline constexpr ImU32 kCompound = IM_COL32(52, 120, 140, 255);
-inline constexpr ImU32 kImage = IM_COL32(90, 100, 170, 255);
-inline constexpr ImU32 kPlayhead = IM_COL32(235, 70, 60, 255);
-inline constexpr ImU32 kSnap = IM_COL32(255, 220, 60, 255);
+inline constexpr ImU32 kVideo = pal::kClipVideo;
+inline constexpr ImU32 kAudio = pal::kClipAudio;
+inline constexpr ImU32 kText = pal::kClipText;
+inline constexpr ImU32 kSubtitle = pal::kClipSubtitle;
+inline constexpr ImU32 kSolid = pal::kClipSolid;
+inline constexpr ImU32 kAdjustment = pal::kClipAdjust;
+inline constexpr ImU32 kCompound = pal::kClipCompound;
+inline constexpr ImU32 kImage = pal::kClipImage;
+inline constexpr ImU32 kPlayhead = pal::kPlayhead;
+inline constexpr ImU32 kSnap = IM_COL32(255, 214, 72, 255);
 inline constexpr ImU32 kSelection = IM_COL32(255, 255, 255, 255);
 inline constexpr ImU32 kOffline = IM_COL32(170, 40, 40, 255);
 inline constexpr ImU32 kWorkArea = IM_COL32(90, 140, 220, 70);
@@ -38,6 +39,7 @@ enum class Icon {
     Plus, Minus, Close, Eye, EyeOff, Lock, Unlock, Speaker, Mute, Razor, Pointer, Magnet, Link, Gear, Folder,
     Trash, Marker, Up, Down, Reset, Search, Film, Music, Image, Text, Check, Warning,
     Save, Undo, Redo, Export, Subtitle, Effects, Palette, Help, Sound,
+    Sparkle, Transition, Grid, List, Fullscreen, Star, StarFilled, More, Info, Bolt, Volume,
 };
 void drawIcon(ImDrawList* dl, Icon icon, ImVec2 center, float size, ImU32 color);
 // Square button with a vector icon; `active` draws it highlighted.
@@ -46,6 +48,27 @@ bool textToggle(const char* label, bool* value, const char* tooltip = nullptr, I
 // Toolbar button with a vector icon and a text label (more discoverable than icons alone).
 bool iconTextButton(const char* id, Icon icon, const char* label, const char* tooltip = nullptr, bool active = false,
                     bool enabled = true);
+// ------------------------------------------------------------------ modern controls
+// Accent-filled call-to-action button (Export, Create, Apply...).
+bool primaryButton(const char* label, ImVec2 size = ImVec2(0, 0), bool enabled = true);
+// Transparent button with an icon and text; highlighted on hover (toolbars).
+bool ghostButton(const char* id, Icon icon, const char* label, const char* tooltip = nullptr, bool active = false, bool enabled = true);
+// Pill-shaped segmented control; returns true when the selection changed.
+bool segmented(const char* id, const char* const* labels, int count, int* current, const char* const* tooltips = nullptr);
+// Vertical navigation rail item (icon above a short label).
+bool railButton(const char* id, Icon icon, const char* label, bool active, float width);
+// Rounded filter chip.
+bool chipButton(const char* label, bool active);
+// Semibold UI font (nullptr when none was found; see loadUiFonts).
+ImFont* boldFont();
+// Section heading in the bold UI font.
+void headingText(const char* text, float scale = 1.0f);
+// Rounded "card" background behind the next items (call endCard() after).
+void beginCard(const char* id, ImVec2 size = ImVec2(0, 0), ImU32 bg = pal::kPanelRaised);
+void endCard();
+// Small coloured dot (status indicators).
+void statusDot(ImU32 color);
+
 // Form row with the label on the left (reads naturally for Japanese UI text);
 // the next widget fills the rest of the row. Pass "##id" labels to widgets.
 void formLabel(const char* label, float labelWidth = 0.0f);

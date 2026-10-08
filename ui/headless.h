@@ -4,7 +4,9 @@
 // keyboard events. Used by the UI tests (on every platform) and for
 // automation.
 
+#include <map>
 #include <memory>
+#include <string>
 
 #include <imgui.h>
 
@@ -34,6 +36,11 @@ public:
     void press(ImGuiKey k, bool ctrl = false, bool shift = false, bool alt = false);  // full key stroke
     void wheel(float y, float x = 0.0f);
 
+    // Rasterizes the last frame in software and writes a PNG (UI screenshots
+    // on any platform, no GPU needed). Device textures are shown when the App
+    // uses the CPU device with host views (the headless default).
+    bool saveScreenshot(const std::string& path);
+
     MainWindow& window() { return *window_; }
     ImGuiContext* context() { return ctx_; }
     [[nodiscard]] int drawCalls() const { return lastDrawCmds_; }
@@ -45,6 +52,8 @@ private:
     std::unique_ptr<MainWindow> window_;
     int lastDrawCmds_ = 0;
     int lastVertices_ = 0;
+    int nextTexId_ = 1;
+    std::map<ImTextureID, ImTextureData*> fontTextures_;
 };
 
 }  // namespace avc::ui

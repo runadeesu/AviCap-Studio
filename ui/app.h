@@ -78,9 +78,11 @@ public:
 
 // Requests from commands to the window layer (dialogs, panels, view changes).
 struct UiState {
-    bool showMedia = true, showViewer = true, showTimeline = true, showInspector = true, showEffects = true;
+    bool showLibrary = true, showViewer = true, showTimeline = true, showInspector = true;
     bool showExport = false, showMixer = true, showScopes = false, showDiagnostics = false, showHistory = false;
-    bool showColor = true, showAudioFx = false, showSounds = true, showAi = true, showMarkers = false;
+    bool showColor = true, showAudioFx = false, showMarkers = false;
+    // Library page: media | audio | text | effects | transitions | ai
+    std::string libraryPage = "media";
     bool showSettings = false, showAbout = false, showNewProject = false, showCommandPalette = false;
     bool showSpeedDialog = false, showShortcuts = false, showRecovery = false, showRelink = false;
     bool resetLayout = false;
@@ -193,6 +195,7 @@ public:
     // on A2 and later (back to back), sound effects on A3 and later.
     void addSoundFiles(std::vector<std::string> files, bool music, std::optional<Time> at = std::nullopt);
     void setWorkspace(const std::string& name);
+    void openLibrary(const std::string& page);
 
     // ---------------------------------------------------------------- media
     void importFiles(std::vector<std::string> paths, std::function<void(const std::vector<MediaId>&)> done = {});
@@ -253,7 +256,8 @@ public:
     void setOutPoint();
     void clearInOut();
     MarkerId addMarker(MarkerKind kind = MarkerKind::Standard, std::string name = {});
-    ClipId addTextClip(const std::string& text = "Title");
+    // `style` customizes the new clip (text presets) inside the same undo step.
+    ClipId addTextClip(const std::string& text = "Title", const std::function<void(Clip&, const Sequence&)>& style = {});
     ClipId addSubtitleClip(const std::string& text, Time start, Time duration);
     ClipId addAdjustmentLayer();
     ClipId addSolidClip(ParamValue color);

@@ -201,7 +201,9 @@ TexturePtr uploadVideoFrame(Device& device, TexturePool& pool, const VideoFrame&
 // Reads an RGBA16F / RGBA8 texture as straight RGBA8 (tests, thumbnails).
 std::vector<uint8_t> readbackRgba8(Device& device, const Texture& tex, bool unpremultiply = true);
 
-std::unique_ptr<Device> createCpuDevice(unsigned threads = 0);
+// hostViews: nativeView() returns the Texture* itself, so a software UI
+// renderer (headless screenshots) can display device textures.
+std::unique_ptr<Device> createCpuDevice(unsigned threads = 0, bool hostViews = false);
 
 // C callbacks (ctx = Device*) handed to FFmpeg's D3D11VA device context.
 void deviceLockThunk(void* device);

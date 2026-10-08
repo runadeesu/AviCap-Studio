@@ -109,7 +109,9 @@ App::App(AppOptions opt) : posts_(std::make_shared<PostQueue>()) {
     }
 
     dialogs_ = opt.dialogs ? std::move(opt.dialogs) : std::make_unique<NullDialogs>();
-    device_ = opt.device ? std::move(opt.device) : gpu::createCpuDevice();
+    // Without a GPU device (headless / tests) the CPU device exposes its
+    // textures to the software UI renderer used for screenshots.
+    device_ = opt.device ? std::move(opt.device) : gpu::createCpuDevice(0, true);
     AVC_INFO("app", "render device: {} ({})", device_->info().name, device_->info().adapter);
 
     const fs::path cacheRoot = settings_.cache.location.empty() ? dataDir_ / "Cache" : pathFromUtf8(settings_.cache.location);
@@ -674,6 +676,11 @@ void App::setWorkspace(const std::string& name) {
     ui_.workspace = name;
     ui_.applyWorkspace = name;
     settings_.ui.workspace = name;
+}
+
+void App::openLibrary(const std::string& page) {
+    ui_.showLibrary = true;
+    ui_.libraryPage = page;
 }
 
 void App::importFolderDialog() {
@@ -1402,7 +1409,7 @@ int App::findFreeVisualTrack(TimeRange range, std::optional<TrackKind> preferKin
     return -1;
 }
 
-ClipId App::addTextClip(const std::string& text) {
+ClipId App::addTextClip(const std::string& text, const std::function<void(Clip&, const Sequence&)>& style) {
     const Time start = snapToFrame(playhead());
     const Time dur = Time::fromSeconds(5.0);
     ClipId id = kInvalidId;
@@ -1414,6 +1421,7 @@ ClipId App::addTextClip(const std::string& text) {
             track = e.seq().trackIndex(*r);
         }
         Clip c = makeTextClip(text, start, dur);
+        if (style) style(c, e.seq());
         id = c.id;
         return edit::placeClips(e, {{track, c}}, edit::PlaceMode::Overwrite);
     });

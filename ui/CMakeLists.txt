@@ -15,6 +15,7 @@ set(AVICAP_UI_SOURCES
     headless.cpp
     history_panel.cpp
     inspector_panel.cpp
+    library_panel.cpp
     main_window.cpp
     media_panel.cpp
     mixer_panel.cpp
@@ -34,7 +35,7 @@ endif()
 
 avicap_add_module(ui
     SOURCES ${AVICAP_UI_SOURCES}
-    DEPS AviCap::ai AviCap::imgui AviCap::cache AviCap::export AviCap::proxy AviCap::project AviCap::audio
+    DEPS AviCap::ai AviCap::imgui AviCap::stb AviCap::cache AviCap::export AviCap::proxy AviCap::project AviCap::audio
          AviCap::render AviCap::effects AviCap::text AviCap::media AviCap::timeline AviCap::core)
 
 if(WIN32)

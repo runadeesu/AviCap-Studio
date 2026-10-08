@@ -313,7 +313,7 @@ TEST_CASE("AI tools: silence removal and plan preview through the app") {
     opt.loadSettings = false;
     App app(std::move(opt));
     HeadlessHost host(app, ImVec2(1600, 900));
-    app.ui().showAi = true;
+    app.openLibrary("ai");
     host.frames(2);
 
     app.importFiles({voice});
@@ -410,7 +410,7 @@ TEST_CASE("sound library: scan, preview, legal import and timeline placement") {
     app.settings().sounds.rootFolder = pathToUtf8(root);
     app.settings().sounds.libraryFolders = {pathToUtf8(extra)};
     HeadlessHost host(app, ImVec2(1400, 850));
-    app.ui().showSounds = true;
+    app.openLibrary("audio");
 
     SoundLibrary& lib = app.sounds();
     lib.rescan();
@@ -503,7 +503,7 @@ TEST_CASE("AI tools: cloud assistant needs consent and goes through preview/appl
     app.settings().ai.assistantProvider = "anthropic";
     app.settings().ai.cloudConsent = false;
     app.settings().privacy.allowNetwork = true;
-    app.ui().showAi = true;
+    app.openLibrary("ai");
     host.frames(2);  // the consent box is drawn
 
     // Without consent nothing is sent.

@@ -1,71 +1,123 @@
 // Dark editor theme (plus a high-contrast variant) and system font loading.
 
 #include <filesystem>
+#include <optional>
+#include <vector>
 
+#include <stb_truetype.h>
+
+#include "core/file_io.h"
 #include "core/i18n.h"
 #include "core/log.h"
 #include "core/platform.h"
 #include "core/strings.h"
 #include "ui/main_window.h"
+#include "ui/style.h"
 
 namespace avc::ui {
 
 void applyTheme(float scale, bool highContrast) {
+    using namespace pal;
     ImGuiStyle style;
     ImGui::StyleColorsDark(&style);
-    style.WindowRounding = 4.0f;
-    style.ChildRounding = 3.0f;
-    style.FrameRounding = 3.0f;
-    style.PopupRounding = 4.0f;
-    style.ScrollbarRounding = 6.0f;
-    style.GrabRounding = 3.0f;
-    style.TabRounding = 3.0f;
-    style.WindowPadding = ImVec2(8, 8);
-    style.FramePadding = ImVec2(6, 4);
-    style.ItemSpacing = ImVec2(6, 5);
-    style.WindowBorderSize = 1.0f;
-    style.DockingSeparatorSize = 3.0f;
+    // Geometry: rounded, airy controls; panels are separated by gaps instead
+    // of borders (the dock splitters show the app background).
+    style.WindowRounding = kPanelRadius;
+    style.ChildRounding = 8.0f;
+    style.FrameRounding = kControlRadius;
+    style.PopupRounding = 10.0f;
+    style.ScrollbarRounding = 10.0f;
+    style.ScrollbarSize = 10.0f;
+    style.GrabRounding = 7.0f;
+    style.GrabMinSize = 12.0f;
+    style.TabRounding = 7.0f;
+    style.WindowPadding = ImVec2(12, 10);
+    style.FramePadding = ImVec2(10, 6);
+    style.ItemSpacing = ImVec2(8, 7);
+    style.ItemInnerSpacing = ImVec2(6, 5);
+    style.CellPadding = ImVec2(8, 5);
+    style.IndentSpacing = 16.0f;
+    style.WindowBorderSize = 0.0f;
+    style.ChildBorderSize = 1.0f;
+    style.PopupBorderSize = 1.0f;
+    style.FrameBorderSize = 0.0f;
+    style.TabBorderSize = 0.0f;
+    style.TabBarBorderSize = 0.0f;
+    style.TabBarOverlineSize = 2.0f;
+    style.TabCloseButtonMinWidthSelected = 0.0f;     // close button only on hover
+    style.TabCloseButtonMinWidthUnselected = 1e30f;  // never on inactive tabs
+    style.DockingSeparatorSize = kPanelGap;
+    style.DockingNodeHasCloseButton = false;
+    style.WindowMenuButtonPosition = ImGuiDir_None;
+    style.SeparatorTextBorderSize = 1.0f;
+    style.SeparatorTextPadding = ImVec2(0, 4);
+    style.SelectableTextAlign = ImVec2(0.0f, 0.5f);
+    style.WindowTitleAlign = ImVec2(0.0f, 0.5f);
+
     ImVec4* c = style.Colors;
-    const ImVec4 bg(0.105f, 0.108f, 0.122f, 1.0f);
-    const ImVec4 panel(0.135f, 0.138f, 0.155f, 1.0f);
-    const ImVec4 accent(0.27f, 0.47f, 0.80f, 1.0f);
-    c[ImGuiCol_WindowBg] = panel;
+    c[ImGuiCol_Text] = v4(kText);
+    c[ImGuiCol_TextDisabled] = v4(kTextMuted);
+    c[ImGuiCol_WindowBg] = v4(kPanel);
     c[ImGuiCol_ChildBg] = ImVec4(0, 0, 0, 0);
-    c[ImGuiCol_PopupBg] = ImVec4(0.12f, 0.12f, 0.14f, 0.98f);
-    c[ImGuiCol_Border] = ImVec4(0.22f, 0.22f, 0.26f, 1.0f);
-    c[ImGuiCol_FrameBg] = ImVec4(0.18f, 0.185f, 0.21f, 1.0f);
-    c[ImGuiCol_FrameBgHovered] = ImVec4(0.23f, 0.24f, 0.28f, 1.0f);
-    c[ImGuiCol_FrameBgActive] = ImVec4(0.26f, 0.28f, 0.34f, 1.0f);
-    c[ImGuiCol_TitleBg] = bg;
-    c[ImGuiCol_TitleBgActive] = bg;
-    c[ImGuiCol_MenuBarBg] = bg;
-    c[ImGuiCol_Header] = ImVec4(0.22f, 0.30f, 0.44f, 1.0f);
-    c[ImGuiCol_HeaderHovered] = ImVec4(0.26f, 0.36f, 0.54f, 1.0f);
-    c[ImGuiCol_HeaderActive] = accent;
-    c[ImGuiCol_Button] = ImVec4(0.20f, 0.21f, 0.24f, 1.0f);
-    c[ImGuiCol_ButtonHovered] = ImVec4(0.27f, 0.30f, 0.37f, 1.0f);
-    c[ImGuiCol_ButtonActive] = accent;
-    c[ImGuiCol_CheckMark] = ImVec4(0.45f, 0.65f, 1.0f, 1.0f);
-    c[ImGuiCol_SliderGrab] = ImVec4(0.40f, 0.55f, 0.85f, 1.0f);
-    c[ImGuiCol_SliderGrabActive] = ImVec4(0.50f, 0.65f, 1.0f, 1.0f);
-    c[ImGuiCol_Tab] = bg;
-    c[ImGuiCol_TabHovered] = ImVec4(0.26f, 0.36f, 0.54f, 1.0f);
-    c[ImGuiCol_TabSelected] = panel;
-    c[ImGuiCol_TabSelectedOverline] = accent;
-    c[ImGuiCol_TabDimmed] = bg;
-    c[ImGuiCol_TabDimmedSelected] = panel;
-    c[ImGuiCol_DockingEmptyBg] = bg;
-    c[ImGuiCol_Separator] = ImVec4(0.22f, 0.22f, 0.26f, 1.0f);
-    c[ImGuiCol_TextSelectedBg] = ImVec4(0.27f, 0.47f, 0.80f, 0.45f);
-    c[ImGuiCol_DragDropTarget] = ImVec4(1.0f, 0.85f, 0.25f, 1.0f);
+    c[ImGuiCol_PopupBg] = ImVec4(0.115f, 0.122f, 0.145f, 0.985f);
+    c[ImGuiCol_Border] = v4(kStroke);
+    c[ImGuiCol_BorderShadow] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_FrameBg] = v4(kPanelRaised);
+    c[ImGuiCol_FrameBgHovered] = v4(kPanelHover);
+    c[ImGuiCol_FrameBgActive] = v4(kPanelActive);
+    c[ImGuiCol_TitleBg] = v4(kPanel);
+    c[ImGuiCol_TitleBgActive] = v4(kPanel);
+    c[ImGuiCol_TitleBgCollapsed] = v4(kPanel);
+    c[ImGuiCol_MenuBarBg] = v4(kAppBg);
+    c[ImGuiCol_ScrollbarBg] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_ScrollbarGrab] = ImVec4(1, 1, 1, 0.12f);
+    c[ImGuiCol_ScrollbarGrabHovered] = ImVec4(1, 1, 1, 0.22f);
+    c[ImGuiCol_ScrollbarGrabActive] = v4(kAccent);
+    c[ImGuiCol_CheckMark] = v4(kAccentHover);
+    c[ImGuiCol_SliderGrab] = v4(kAccent);
+    c[ImGuiCol_SliderGrabActive] = v4(kAccentHover);
+    c[ImGuiCol_Button] = v4(kPanelRaised);
+    c[ImGuiCol_ButtonHovered] = v4(kPanelHover);
+    c[ImGuiCol_ButtonActive] = v4(kPanelActive);
+    c[ImGuiCol_Header] = v4(withAlpha(kAccent, 0.22f));
+    c[ImGuiCol_HeaderHovered] = ImVec4(1, 1, 1, 0.06f);
+    c[ImGuiCol_HeaderActive] = v4(withAlpha(kAccent, 0.32f));
+    c[ImGuiCol_Separator] = v4(kStroke);
+    c[ImGuiCol_SeparatorHovered] = v4(withAlpha(kAccent, 0.6f));
+    c[ImGuiCol_SeparatorActive] = v4(kAccent);
+    c[ImGuiCol_ResizeGrip] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_ResizeGripHovered] = v4(withAlpha(kAccent, 0.6f));
+    c[ImGuiCol_ResizeGripActive] = v4(kAccent);
+    c[ImGuiCol_InputTextCursor] = v4(kText);
+    c[ImGuiCol_Tab] = v4(kPanel);
+    c[ImGuiCol_TabHovered] = v4(kPanelHover);
+    c[ImGuiCol_TabSelected] = v4(kPanel);
+    c[ImGuiCol_TabSelectedOverline] = v4(kAccent);
+    c[ImGuiCol_TabDimmed] = v4(kPanel);
+    c[ImGuiCol_TabDimmedSelected] = v4(kPanel);
+    c[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(1, 1, 1, 0.14f);
+    c[ImGuiCol_DockingPreview] = v4(withAlpha(kAccent, 0.45f));
+    c[ImGuiCol_DockingEmptyBg] = v4(kAppBg);
+    c[ImGuiCol_PlotLines] = v4(kAccentHover);
+    c[ImGuiCol_PlotHistogram] = v4(kAccent);
+    c[ImGuiCol_TableHeaderBg] = v4(kPanelRaised);
+    c[ImGuiCol_TableBorderStrong] = v4(kStroke);
+    c[ImGuiCol_TableBorderLight] = ImVec4(1, 1, 1, 0.04f);
+    c[ImGuiCol_TableRowBg] = ImVec4(0, 0, 0, 0);
+    c[ImGuiCol_TableRowBgAlt] = ImVec4(1, 1, 1, 0.02f);
+    c[ImGuiCol_TextLink] = v4(kAccentText);
+    c[ImGuiCol_TextSelectedBg] = v4(withAlpha(kAccent, 0.40f));
+    c[ImGuiCol_DragDropTarget] = v4(kAccentHover);
+    c[ImGuiCol_NavCursor] = v4(kAccent);
+    c[ImGuiCol_ModalWindowDimBg] = ImVec4(0.02f, 0.02f, 0.04f, 0.62f);
     if (highContrast) {
         c[ImGuiCol_Text] = ImVec4(1, 1, 1, 1);
-        c[ImGuiCol_TextDisabled] = ImVec4(0.80f, 0.80f, 0.80f, 1);
+        c[ImGuiCol_TextDisabled] = ImVec4(0.82f, 0.82f, 0.82f, 1);
         c[ImGuiCol_WindowBg] = ImVec4(0, 0, 0, 1);
-        c[ImGuiCol_Border] = ImVec4(1, 1, 1, 1);
+        c[ImGuiCol_Border] = ImVec4(1, 1, 1, 0.8f);
         c[ImGuiCol_FrameBg] = ImVec4(0.10f, 0.10f, 0.10f, 1);
-        c[ImGuiCol_Button] = ImVec4(0.15f, 0.15f, 0.15f, 1);
-        c[ImGuiCol_Header] = ImVec4(0.0f, 0.35f, 0.8f, 1);
+        c[ImGuiCol_Button] = ImVec4(0.16f, 0.16f, 0.16f, 1);
+        c[ImGuiCol_Header] = ImVec4(0.30f, 0.20f, 0.85f, 1);
         style.FrameBorderSize = 1.0f;
     }
     style.ScaleAllSizes(scale);
@@ -74,62 +126,123 @@ void applyTheme(float scale, bool highContrast) {
     ImGui::GetStyle() = style;
 }
 
+namespace {
+
+ImFont* g_bold = nullptr;
+
+namespace fs = std::filesystem;
+
+std::vector<fs::path> fontDirs() {
+    std::vector<fs::path> dirs;
+    if (auto d = getEnv("AVICAP_FONT_DIR")) dirs.push_back(pathFromUtf8(*d));
+#if defined(_WIN32)
+    dirs.push_back(pathFromUtf8(getEnv("WINDIR").value_or("C:\\Windows")) / "Fonts");
+    if (auto local = getEnv("LOCALAPPDATA")) dirs.push_back(pathFromUtf8(*local) / "Microsoft" / "Windows" / "Fonts");
+#else
+    for (const char* d : {"/usr/share/fonts", "/usr/local/share/fonts"}) dirs.emplace_back(d);
+    if (auto home = getEnv("HOME")) dirs.push_back(pathFromUtf8(*home) / ".local/share/fonts");
+#endif
+    return dirs;
+}
+
+// Finds a font file by name in the font folders (recursively on Linux).
+std::optional<fs::path> findFont(const char* file) {
+    std::error_code ec;
+    for (const auto& d : fontDirs()) {
+        const fs::path direct = d / file;
+        if (fs::exists(direct, ec)) return direct;
+#if !defined(_WIN32)
+        for (fs::recursive_directory_iterator it(d, fs::directory_options::skip_permission_denied, ec), end; !ec && it != end; it.increment(ec))
+            if (it->path().filename() == file) return it->path();
+#endif
+    }
+    return std::nullopt;
+}
+
+// Face index inside a .ttc collection whose family name matches `family`
+// (e.g. "Yu Gothic UI" inside YuGothR.ttc); -1 when absent.
+int faceIndex(const fs::path& file, const char* family) {
+    auto bytes = readFileBytes(file);
+    if (!bytes) return -1;
+    const auto* data = reinterpret_cast<const unsigned char*>(bytes->data());
+    const int n = std::max(1, stbtt_GetNumberOfFonts(data));
+    for (int i = 0; i < n; ++i) {
+        const int off = stbtt_GetFontOffsetForIndex(data, i);
+        stbtt_fontinfo info;
+        if (off < 0 || !stbtt_InitFont(&info, data, off)) continue;
+        int len = 0;
+        // Name id 1 (family), Windows platform, Unicode BMP, English (US).
+        const char* name = stbtt_GetFontNameString(&info, &len, STBTT_PLATFORM_ID_MICROSOFT, STBTT_MS_EID_UNICODE_BMP, STBTT_MS_LANG_ENGLISH, 1);
+        if (!name) continue;
+        std::string ascii;
+        for (int k = 1; k < len; k += 2) ascii += name[k];  // UTF-16BE, ASCII names
+        if (ascii == family) return i;
+    }
+    return -1;
+}
+
+struct Face {
+    const char* file;
+    const char* family;  // nullptr: first face
+};
+
+bool addFace(const Face& f, bool merge, std::string& used, ImFont** out = nullptr) {
+    auto path = findFont(f.file);
+    if (!path) return false;
+    int index = 0;
+    if (f.family) {
+        index = faceIndex(*path, f.family);
+        if (index < 0) return false;
+    }
+    ImFontConfig cfg;
+    cfg.MergeMode = merge;
+    cfg.FontNo = index;
+    cfg.OversampleH = 2;
+    ImFont* font = ImGui::GetIO().Fonts->AddFontFromFileTTF(pathToUtf8(*path).c_str(), 0.0f, &cfg);
+    if (!font) return false;
+    if (out) *out = font;
+    used += std::string(used.empty() ? "" : " + ") + (f.family ? f.family : f.file);
+    return true;
+}
+
+bool addFirst(const std::vector<Face>& list, bool merge, std::string& used, ImFont** out = nullptr) {
+    for (const auto& f : list)
+        if (addFace(f, merge, used, out)) return true;
+    return false;
+}
+
+}  // namespace
+
+ImFont* boldFont() { return g_bold; }
+
 std::string loadUiFonts() {
     ImGuiIO& io = ImGui::GetIO();
-#if defined(_WIN32)
-    namespace fs = std::filesystem;
-    const fs::path fonts = pathFromUtf8(getEnv("WINDIR").value_or("C:\\Windows")) / "Fonts";
-    auto exists = [](const fs::path& p) {
-        std::error_code ec;
-        return fs::exists(p, ec);
-    };
-    struct Face {
-        const char* file;
-        int index;  // face inside a .ttc collection
-    };
-    // Japanese UI: a Japanese UI face first (it also covers Latin); English UI:
-    // Segoe UI first with a Japanese face merged in for project/media names.
-    static const Face japanese[] = {{"meiryo.ttc", 2 /* Meiryo UI */}, {"YuGothM.ttc", 0}, {"YuGothR.ttc", 0},
-                                    {"msgothic.ttc", 0}, {"NotoSansJP-Regular.otf", 0}, {"NotoSansCJK-Regular.ttc", 0},
-                                    {"ipaexg.ttf", 0}};
-    static const Face latin[] = {{"segoeui.ttf", 0}, {"arial.ttf", 0}, {"tahoma.ttf", 0}, {"DejaVuSans.ttf", 0},
-                                 {"LiberationSans-Regular.ttf", 0}};
-    const bool ja = currentLanguage() == Language::Japanese;
+    // Modern Windows UI faces first: Segoe UI Variable / Segoe UI for Latin
+    // and digits, Yu Gothic UI (or Meiryo UI) merged in for Japanese.
+    const std::vector<Face> latin = {{"SegUIVar.ttf", nullptr}, {"segoeui.ttf", nullptr}, {"DejaVuSans.ttf", nullptr},
+                                     {"LiberationSans-Regular.ttf", nullptr}, {"arial.ttf", nullptr}};
+    const std::vector<Face> latinBold = {{"seguisb.ttf", nullptr}, {"segoeuib.ttf", nullptr}, {"DejaVuSans-Bold.ttf", nullptr},
+                                         {"LiberationSans-Bold.ttf", nullptr}, {"arialbd.ttf", nullptr}};
+    const std::vector<Face> japanese = {{"YuGothM.ttc", "Yu Gothic UI"}, {"YuGothR.ttc", "Yu Gothic UI"}, {"meiryo.ttc", "Meiryo UI"},
+                                        {"BIZ-UDGothicR.ttc", "BIZ UDPGothic"}, {"NotoSansJP-Regular.otf", nullptr},
+                                        {"NotoSansCJK-Regular.ttc", nullptr}, {"ipaexg.ttf", nullptr}, {"wqy-zenhei.ttc", nullptr},
+                                        {"msgothic.ttc", nullptr}};
+    const std::vector<Face> japaneseBold = {{"YuGothB.ttc", "Yu Gothic UI"}, {"meiryob.ttc", "Meiryo UI"},
+                                            {"BIZ-UDGothicB.ttc", "BIZ UDPGothic"}, {"NotoSansJP-Bold.otf", nullptr},
+                                            {"ipaexg.ttf", nullptr}, {"wqy-zenhei.ttc", nullptr}};
     std::string used;
-    auto addFirst = [&](const Face* list, size_t n, bool merge) -> bool {
-        for (size_t i = 0; i < n; ++i) {
-            const fs::path p = fonts / list[i].file;
-            if (!exists(p)) continue;
-            ImFontConfig cfg;
-            cfg.MergeMode = merge;
-            cfg.FontNo = list[i].index;
-            cfg.OversampleH = 2;
-            if (io.Fonts->AddFontFromFileTTF(pathToUtf8(p).c_str(), 0.0f, &cfg)) {
-                used += std::string(used.empty() ? "" : " + ") + list[i].file;
-                return true;
-            }
-        }
-        return false;
-    };
-    bool haveMain = false;
-    if (ja) {
-        haveMain = addFirst(japanese, std::size(japanese), false);
-        if (!haveMain) haveMain = addFirst(latin, std::size(latin), false);
-    } else {
-        haveMain = addFirst(latin, std::size(latin), false);
-        if (haveMain) addFirst(japanese, std::size(japanese), true);
-        else haveMain = addFirst(japanese, std::size(japanese), false);
-    }
+    bool haveMain = addFirst(latin, false, used);
+    if (haveMain) addFirst(japanese, true, used);
+    else haveMain = addFirst(japanese, false, used);
     if (!haveMain) {
         io.Fonts->AddFontDefault();
         used = "ProggyClean (built-in)";
     }
-    AVC_INFO("ui", "UI fonts: {}", used);
+    std::string boldUsed;
+    g_bold = nullptr;
+    if (addFirst(latinBold, false, boldUsed, &g_bold)) addFirst(japaneseBold, true, boldUsed);
+    AVC_INFO("ui", "UI fonts: {} / bold: {}", used, boldUsed.empty() ? "none" : boldUsed);
     return used;
-#else
-    io.Fonts->AddFontDefault();
-    return "ProggyClean (built-in)";
-#endif
 }
 
 }  // namespace avc::ui

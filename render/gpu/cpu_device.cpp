@@ -256,7 +256,7 @@ uint16_t toU16(float v) { return static_cast<uint16_t>(std::clamp(v, 0.0f, 1.0f)
 
 class CpuDevice final : public Device {
 public:
-    explicit CpuDevice(unsigned threads) : pool_(threads ? threads : std::max(1u, hardwareThreads())) {
+    CpuDevice(unsigned threads, bool hostViews) : pool_(threads ? threads : std::max(1u, hardwareThreads())), hostViews_(hostViews) {
         info_.kind = BackendKind::CPU;
         info_.name = "CPU";
         info_.adapter = cpuDescription();
@@ -434,9 +434,12 @@ public:
 
     size_t textureMemoryInUse() const override { return memory_->load(); }
 
+    void* nativeView(const Texture& tex) const override { return hostViews_ ? const_cast<Texture*>(&tex) : nullptr; }
+
 private:
     DeviceInfo info_;
     ParallelFor pool_;
+    bool hostViews_ = false;
     std::shared_ptr<std::atomic<size_t>> memory_ = std::make_shared<std::atomic<size_t>>(0);
     float4 emptyPixel_{0.0f, 0.0f, 0.0f, 0.0f};
     hlsl::Texture empty_;
@@ -444,6 +447,6 @@ private:
 
 }  // namespace
 
-std::unique_ptr<Device> createCpuDevice(unsigned threads) { return std::make_unique<CpuDevice>(threads); }
+std::unique_ptr<Device> createCpuDevice(unsigned threads, bool hostViews) { return std::make_unique<CpuDevice>(threads, hostViews); }
 
 }  // namespace avc::gpu

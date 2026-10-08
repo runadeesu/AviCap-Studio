@@ -15,6 +15,8 @@ namespace avc::ui {
 void applyTheme(float scale, bool highContrast);
 // Loads UI fonts (Latin + Japanese) from the system; returns a description.
 std::string loadUiFonts();
+// Semibold UI font for headings (nullptr when none was found).
+ImFont* boldFont();
 
 class MainWindow {
 public:
@@ -30,11 +32,11 @@ public:
     [[nodiscard]] std::string title() const { return app_.windowTitle(); }
 
 private:
-    void menuBar();
+    void menus();
     void menuItem(const char* id, bool checked = false);
     void dockspace();
     void buildDefaultLayout(ImGuiID dockId, const std::string& workspace);
-    void toolbar();
+    void header();
     void shortcutSheet();
     void statusBar();
     void notifications();
@@ -51,10 +53,9 @@ private:
 
     App& app_;
     TimelinePanel timeline_;
-    MediaPanel media_;
+    LibraryPanel library_;
     ViewerPanel viewer_;
     InspectorPanel inspector_;
-    EffectsPanel effects_;
     ColorPanel color_;
     ExportPanel export_;
     MixerPanel mixer_;
@@ -62,8 +63,6 @@ private:
     HistoryPanel history_;
     MarkersPanel markers_;
     DiagnosticsPanel diagnostics_;
-    AiPanel ai_;
-    SoundsPanel sounds_;
     SettingsWindow settings_;
 
     bool layoutBuilt_ = false;

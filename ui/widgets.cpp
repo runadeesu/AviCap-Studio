@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 #include <imgui_internal.h>
 
@@ -265,21 +266,93 @@ void drawIcon(ImDrawList* dl, Icon icon, ImVec2 c, float s, ImU32 color) {
         dl->AddLine(c + ImVec2(0, -h * 0.3f), c + ImVec2(0, h * 0.2f), IM_COL32(0, 0, 0, 255), t * 1.5f);
         dl->AddCircleFilled(c + ImVec2(0, h * 0.42f), t, IM_COL32(0, 0, 0, 255));
         break;
+    case Icon::Sparkle: {
+        // Four-point star plus a small one: the usual "AI" glyph.
+        auto star = [&](ImVec2 o, float r) {
+            const ImVec2 p[8] = {o + ImVec2(0, -r), o + ImVec2(r * 0.22f, -r * 0.22f), o + ImVec2(r, 0), o + ImVec2(r * 0.22f, r * 0.22f),
+                                 o + ImVec2(0, r), o + ImVec2(-r * 0.22f, r * 0.22f), o + ImVec2(-r, 0), o + ImVec2(-r * 0.22f, -r * 0.22f)};
+            dl->AddConcavePolyFilled(p, 8, color);
+        };
+        star(c + ImVec2(-h * 0.12f, h * 0.1f), h * 0.72f);
+        star(c + ImVec2(h * 0.6f, -h * 0.6f), h * 0.3f);
+        break;
+    }
+    case Icon::Transition:
+        dl->AddRectFilled(c + ImVec2(-h * 0.85f, -h * 0.55f), c + ImVec2(-h * 0.05f, h * 0.55f), color, 2.0f);
+        dl->AddRect(c + ImVec2(h * 0.05f, -h * 0.55f), c + ImVec2(h * 0.85f, h * 0.55f), color, 2.0f, t * 1.2f);
+        dl->AddTriangleFilled(c + ImVec2(-h * 0.25f, -h * 0.3f), c + ImVec2(h * 0.25f, 0), c + ImVec2(-h * 0.25f, h * 0.3f), color);
+        break;
+    case Icon::Grid:
+        for (int i = 0; i < 2; ++i)
+            for (int j = 0; j < 2; ++j) {
+                const ImVec2 o = c + ImVec2((i ? 0.1f : -0.75f) * h, (j ? 0.1f : -0.75f) * h);
+                dl->AddRectFilled(o, o + ImVec2(h * 0.65f, h * 0.65f), color, 1.5f);
+            }
+        break;
+    case Icon::List:
+        for (int i = -1; i <= 1; ++i) {
+            const float y = static_cast<float>(i) * h * 0.5f;
+            dl->AddCircleFilled(c + ImVec2(-h * 0.65f, y), t * 1.1f, color);
+            dl->AddLine(c + ImVec2(-h * 0.35f, y), c + ImVec2(h * 0.75f, y), color, t * 1.4f);
+        }
+        break;
+    case Icon::Fullscreen: {
+        const float a = h * 0.75f, b = h * 0.3f;
+        for (int sx = -1; sx <= 1; sx += 2)
+            for (int sy = -1; sy <= 1; sy += 2) {
+                const ImVec2 corner = c + ImVec2(sx * a, sy * a);
+                dl->AddLine(corner, corner - ImVec2(sx * b, 0), color, t * 1.4f);
+                dl->AddLine(corner, corner - ImVec2(0, sy * b), color, t * 1.4f);
+            }
+        break;
+    }
+    case Icon::Star:
+    case Icon::StarFilled: {
+        ImVec2 p[10];
+        for (int i = 0; i < 10; ++i) {
+            const float a = -IM_PI / 2 + static_cast<float>(i) * IM_PI / 5.0f;
+            const float r = (i % 2 == 0) ? h * 0.8f : h * 0.36f;
+            p[i] = c + ImVec2(std::cos(a) * r, std::sin(a) * r + h * 0.06f);
+        }
+        if (icon == Icon::StarFilled) dl->AddConcavePolyFilled(p, 10, color);
+        else dl->AddPolyline(p, 10, color, t * 1.1f, ImDrawFlags_Closed);
+        break;
+    }
+    case Icon::More:
+        for (int i = -1; i <= 1; ++i) dl->AddCircleFilled(c + ImVec2(static_cast<float>(i) * h * 0.5f, 0), t * 1.3f, color);
+        break;
+    case Icon::Info:
+        dl->AddCircle(c, h * 0.72f, color, 20, t * 1.3f);
+        dl->AddLine(c + ImVec2(0, -h * 0.05f), c + ImVec2(0, h * 0.4f), color, t * 1.6f);
+        dl->AddCircleFilled(c + ImVec2(0, -h * 0.33f), t * 1.0f, color);
+        break;
+    case Icon::Bolt: {
+        const ImVec2 p[6] = {c + ImVec2(h * 0.15f, -h * 0.85f), c + ImVec2(-h * 0.55f, h * 0.1f), c + ImVec2(-h * 0.05f, h * 0.1f),
+                             c + ImVec2(-h * 0.2f, h * 0.85f), c + ImVec2(h * 0.55f, -h * 0.15f), c + ImVec2(h * 0.05f, -h * 0.15f)};
+        dl->AddConcavePolyFilled(p, 6, color);
+        break;
+    }
+    case Icon::Volume:
+        drawIcon(dl, Icon::Speaker, c, s, color);
+        break;
     }
 }
 
 bool iconButton(const char* id, Icon icon, const char* tip, bool active, float size) {
+    // Ghost style: no background until hovered; active = accent tint.
     const float s = size > 0 ? size : ImGui::GetFrameHeight();
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     const bool pressed = ImGui::InvisibleButton(id, ImVec2(s, s));
     const bool hovered = ImGui::IsItemHovered();
+    const bool held = ImGui::IsItemActive();
+    const bool disabled = (ImGui::GetItemFlags() & ImGuiItemFlags_Disabled) != 0;
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImGuiStyle& st = ImGui::GetStyle();
-    ImU32 bg = active ? ImGui::GetColorU32(ImGuiCol_ButtonActive)
-                      : hovered ? ImGui::GetColorU32(ImGuiCol_ButtonHovered) : ImGui::GetColorU32(ImGuiCol_Button);
-    dl->AddRectFilled(pos, pos + ImVec2(s, s), bg, st.FrameRounding);
-    const ImU32 fg = ImGui::GetColorU32(ImGuiCol_Text, active ? 1.0f : 0.85f);
-    drawIcon(dl, icon, pos + ImVec2(s * 0.5f, s * 0.5f), s * 0.62f, fg);
+    const float r = std::min(pal::kControlRadius, s * 0.3f);
+    if (active) dl->AddRectFilled(pos, pos + ImVec2(s, s), pal::kAccentSoft, r);
+    else if (held) dl->AddRectFilled(pos, pos + ImVec2(s, s), pal::kPanelActive, r);
+    else if (hovered && !disabled) dl->AddRectFilled(pos, pos + ImVec2(s, s), pal::kPanelHover, r);
+    const ImU32 fg = disabled ? pal::kTextFaint : active ? pal::kAccentText : hovered ? pal::kText : pal::withAlpha(pal::kText, 0.82f);
+    drawIcon(dl, icon, pos + ImVec2(s * 0.5f, s * 0.5f), s * 0.56f, fg);
     if (tip) tooltip(tip);
     return pressed;
 }
@@ -298,25 +371,189 @@ bool textToggle(const char* label, bool* value, const char* tip, ImU32 onColor) 
 }
 
 bool iconTextButton(const char* id, Icon icon, const char* label, const char* tip, bool active, bool enabled) {
+    // Secondary button: soft filled pill with an icon.
     const ImGuiStyle& st = ImGui::GetStyle();
     const float h = ImGui::GetFrameHeight();
-    const float iconW = h * 0.9f;
+    const float iconW = h * 0.85f;
     const ImVec2 textSize = ImGui::CalcTextSize(label, nullptr, true);
     const ImVec2 size(iconW + textSize.x + st.FramePadding.x * 2.0f + 2.0f, h);
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::BeginDisabled(!enabled);
     const bool pressed = ImGui::InvisibleButton(id, size);
     const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+    const bool held = ImGui::IsItemActive();
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    const ImU32 bg = active ? ImGui::GetColorU32(ImGuiCol_ButtonActive)
-                            : (hovered && enabled) ? ImGui::GetColorU32(ImGuiCol_ButtonHovered) : ImGui::GetColorU32(ImGuiCol_Button, 0.55f);
-    dl->AddRectFilled(pos, pos + size, bg, st.FrameRounding);
-    const ImU32 fg = ImGui::GetColorU32(enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled);
-    drawIcon(dl, icon, pos + ImVec2(st.FramePadding.x + iconW * 0.45f, h * 0.5f), h * 0.55f, fg);
+    const ImU32 bg = active ? pal::kAccentSoft : held ? pal::kPanelActive : (hovered && enabled) ? pal::kPanelHover : pal::kPanelRaised;
+    dl->AddRectFilled(pos, pos + size, bg, pal::kControlRadius);
+    const ImU32 fg = !enabled ? pal::kTextFaint : active ? pal::kAccentText : pal::kText;
+    drawIcon(dl, icon, pos + ImVec2(st.FramePadding.x + iconW * 0.42f, h * 0.5f), h * 0.5f, fg);
     dl->AddText(pos + ImVec2(st.FramePadding.x + iconW, (h - textSize.y) * 0.5f), fg, label, ImGui::FindRenderedTextEnd(label));
     ImGui::EndDisabled();
     if (tip) tooltip(tip);
     return pressed && enabled;
+}
+
+bool primaryButton(const char* label, ImVec2 size, bool enabled) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const ImVec2 ts = ImGui::CalcTextSize(label, nullptr, true);
+    if (size.x <= 0) size.x = ts.x + st.FramePadding.x * 2.6f;
+    if (size.y <= 0) size.y = ImGui::GetFrameHeight();
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::BeginDisabled(!enabled);
+    const bool pressed = ImGui::InvisibleButton(label, size);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool held = ImGui::IsItemActive();
+    ImGui::EndDisabled();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImU32 top = !enabled ? pal::kPanelHover : held ? pal::kAccentPressed : hovered ? pal::kAccentHover : pal::kAccent;
+    const ImU32 bottom = !enabled ? pal::kPanelHover : scaleColor(top, 0.86f);
+    // Subtle vertical gradient reads as a modern filled button.
+    dl->AddRectFilled(pos, pos + size, bottom, pal::kControlRadius);
+    dl->AddRectFilledMultiColor(pos + ImVec2(pal::kControlRadius * 0.5f, 1), pos + ImVec2(size.x - pal::kControlRadius * 0.5f, size.y * 0.5f), top, top,
+                                bottom, bottom);
+    const ImU32 fg = enabled ? IM_COL32(255, 255, 255, 255) : pal::kTextFaint;
+    dl->AddText(pos + ImVec2((size.x - ts.x) * 0.5f, (size.y - ts.y) * 0.5f), fg, label, ImGui::FindRenderedTextEnd(label));
+    return pressed && enabled;
+}
+
+bool ghostButton(const char* id, Icon icon, const char* label, const char* tip, bool active, bool enabled) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float h = ImGui::GetFrameHeight();
+    const float iconW = h * 0.8f;
+    const bool hasLabel = label && label[0] && label[0] != '#';
+    const ImVec2 textSize = hasLabel ? ImGui::CalcTextSize(label, nullptr, true) : ImVec2(0, 0);
+    const ImVec2 size(hasLabel ? iconW + textSize.x + st.FramePadding.x * 1.6f : h, h);
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::BeginDisabled(!enabled);
+    const bool pressed = ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled);
+    const bool held = ImGui::IsItemActive();
+    ImGui::EndDisabled();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    if (active) dl->AddRectFilled(pos, pos + size, pal::kAccentSoft, pal::kControlRadius);
+    else if (held) dl->AddRectFilled(pos, pos + size, pal::kPanelActive, pal::kControlRadius);
+    else if (hovered && enabled) dl->AddRectFilled(pos, pos + size, pal::kPanelHover, pal::kControlRadius);
+    const ImU32 fg = !enabled ? pal::kTextFaint : active ? pal::kAccentText : pal::kText;
+    const float iconX = hasLabel ? st.FramePadding.x * 0.6f + iconW * 0.45f : h * 0.5f;
+    drawIcon(dl, icon, pos + ImVec2(iconX, h * 0.5f), h * 0.5f, fg);
+    if (hasLabel)
+        dl->AddText(pos + ImVec2(st.FramePadding.x * 0.6f + iconW, (h - textSize.y) * 0.5f), fg, label, ImGui::FindRenderedTextEnd(label));
+    if (tip) tooltip(tip);
+    return pressed && enabled;
+}
+
+bool segmented(const char* id, const char* const* labels, int count, int* current, const char* const* tips) {
+    ImGui::PushID(id);
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float h = ImGui::GetFrameHeight();
+    float total = 0;
+    std::vector<float> widths(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        widths[static_cast<size_t>(i)] = ImGui::CalcTextSize(labels[i], nullptr, true).x + st.FramePadding.x * 2.2f;
+        total += widths[static_cast<size_t>(i)];
+    }
+    const float pad = 3.0f;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddRectFilled(pos, pos + ImVec2(total + pad * 2, h), pal::kPanelRaised, h * 0.5f);
+    bool changed = false;
+    float x = pos.x + pad;
+    for (int i = 0; i < count; ++i) {
+        const float w = widths[static_cast<size_t>(i)];
+        ImGui::SetCursorScreenPos(ImVec2(x, pos.y + pad));
+        ImGui::PushID(i);
+        const bool pressed = ImGui::InvisibleButton("##seg", ImVec2(w, h - pad * 2));
+        const bool hovered = ImGui::IsItemHovered();
+        ImGui::PopID();
+        if (tips && tips[i]) tooltip(tips[i]);
+        const bool sel = *current == i;
+        if (sel) dl->AddRectFilled(ImVec2(x, pos.y + pad), ImVec2(x + w, pos.y + h - pad), pal::kAccent, (h - pad * 2) * 0.5f);
+        else if (hovered) dl->AddRectFilled(ImVec2(x, pos.y + pad), ImVec2(x + w, pos.y + h - pad), pal::kPanelHover, (h - pad * 2) * 0.5f);
+        const ImVec2 ts = ImGui::CalcTextSize(labels[i], nullptr, true);
+        dl->AddText(ImVec2(x + (w - ts.x) * 0.5f, pos.y + (h - ts.y) * 0.5f), sel ? IM_COL32(255, 255, 255, 255) : hovered ? pal::kText : pal::kTextMuted,
+                    labels[i], ImGui::FindRenderedTextEnd(labels[i]));
+        if (pressed && !sel) {
+            *current = i;
+            changed = true;
+        }
+        x += w;
+    }
+    ImGui::SetCursorScreenPos(pos);
+    ImGui::Dummy(ImVec2(total + pad * 2, h));
+    ImGui::PopID();
+    return changed;
+}
+
+bool railButton(const char* id, Icon icon, const char* label, bool active, float width) {
+    const float fs = ImGui::GetFontSize();
+    const float h = fs * 3.4f;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton(id, ImVec2(width, h));
+    const bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a = pos + ImVec2(4, 2), b = pos + ImVec2(width - 4, h - 2);
+    if (active) {
+        dl->AddRectFilled(a, b, pal::kAccentSoft, pal::kControlRadius + 2);
+        dl->AddRectFilled(ImVec2(pos.x, pos.y + h * 0.28f), ImVec2(pos.x + 3, pos.y + h * 0.72f), pal::kAccent, 2.0f);
+    } else if (hovered) {
+        dl->AddRectFilled(a, b, pal::kPanelHover, pal::kControlRadius + 2);
+    }
+    const ImU32 fg = active ? pal::kAccentText : hovered ? pal::kText : pal::kTextMuted;
+    drawIcon(dl, icon, ImVec2(pos.x + width * 0.5f, pos.y + h * 0.36f), fs * 1.15f, fg);
+    // Labels use a smaller size so long Japanese words fit.
+    const float small = fs * 0.78f;
+    ImFont* font = ImGui::GetFont();
+    const ImVec2 ts = font->CalcTextSizeA(small, width - 4, 0.0f, label);
+    dl->AddText(font, small, ImVec2(pos.x + (width - ts.x) * 0.5f, pos.y + h * 0.66f), fg, label);
+    if (hovered) tooltip(label);
+    return pressed;
+}
+
+bool chipButton(const char* label, bool active) {
+    const ImGuiStyle& st = ImGui::GetStyle();
+    const float h = ImGui::GetFrameHeight() * 0.86f;
+    const ImVec2 ts = ImGui::CalcTextSize(label, nullptr, true);
+    const ImVec2 size(ts.x + st.FramePadding.x * 1.8f, h);
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton(label, size);
+    const bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    if (active) dl->AddRectFilled(pos, pos + size, pal::kAccent, h * 0.5f);
+    else {
+        dl->AddRectFilled(pos, pos + size, hovered ? pal::kPanelHover : pal::kPanelRaised, h * 0.5f);
+        dl->AddRect(pos, pos + size, pal::kStroke, h * 0.5f);
+    }
+    dl->AddText(pos + ImVec2((size.x - ts.x) * 0.5f, (size.y - ts.y) * 0.5f), active ? IM_COL32(255, 255, 255, 255) : hovered ? pal::kText : pal::kTextMuted,
+                label, ImGui::FindRenderedTextEnd(label));
+    return pressed;
+}
+
+void headingText(const char* text, float scale) {
+    ImFont* bold = boldFont();
+    ImGui::PushFont(bold ? bold : ImGui::GetFont(), ImGui::GetStyle().FontSizeBase * scale);
+    ImGui::TextUnformatted(text);
+    ImGui::PopFont();
+}
+
+void beginCard(const char* id, ImVec2 size, ImU32 bg) {
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, bg);
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, pal::kControlRadius + 2);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 10));
+    ImGui::BeginChild(id, size, ImGuiChildFlags_AlwaysUseWindowPadding | (size.y <= 0 ? ImGuiChildFlags_AutoResizeY : 0));
+}
+
+void endCard() {
+    ImGui::EndChild();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
+}
+
+void statusDot(ImU32 color) {
+    const float r = ImGui::GetFontSize() * 0.22f;
+    const ImVec2 p = ImGui::GetCursorScreenPos();
+    const float h = ImGui::GetTextLineHeight();
+    ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(p.x + r, p.y + h * 0.5f), r, color);
+    ImGui::Dummy(ImVec2(r * 2, h));
 }
 
 void formLabel(const char* label, float labelWidth) {

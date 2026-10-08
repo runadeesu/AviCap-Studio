@@ -1275,7 +1275,7 @@ void TimelinePanel::clipContextMenu(App& app) {
             ImGui::Separator();
             if (ImGui::MenuItem(tr("Reveal in Media"))) {
                 app.selection.media = {c->media};
-                app.ui().showMedia = true;
+                app.openLibrary("media");
             }
             if (c->transitionIn && ImGui::MenuItem(tr("Remove Transition In"))) {
                 const ClipId id = c->id;

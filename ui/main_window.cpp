@@ -8,6 +8,7 @@
 #include "core/i18n.h"
 #include "core/platform.h"
 #include "core/strings.h"
+#include "ui/style.h"
 #include "ui/widgets.h"
 
 #include "avicap_build_info.h"
@@ -47,20 +48,24 @@ void MainWindow::frame() {
 
 void MainWindow::dockspace() {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float statusH = ImGui::GetFrameHeight() + 4;
+    const float statusH = ImGui::GetFontSize() + 12.0f;
     ImGui::SetNextWindowPos(vp->WorkPos);
     ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, vp->WorkSize.y - statusH));
     ImGui::SetNextWindowViewport(vp->ID);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(9, 12));  // header height
+    // The host shows the app background: dock splitters use it, so panels
+    // appear as separate rounded cards with gaps between them.
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, pal::kAppBg);
     const ImGuiWindowFlags flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
                                    ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                                    ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
     ImGui::Begin("##AviCapRoot", nullptr, flags);
     ImGui::PopStyleVar(3);
-    menuBar();
-    toolbar();
+    header();
+    ImGui::PopStyleVar();  // FramePadding
     UiState& ui = app_.ui();
     const ImGuiID dockId = ImGui::GetID("AviCapDock");
     if (!layoutBuilt_ || ui.resetLayout || !ui.applyWorkspace.empty()) {
@@ -72,78 +77,95 @@ void MainWindow::dockspace() {
         ui.resetLayout = false;
         ui.applyWorkspace.clear();
     }
-    ImGui::DockSpace(dockId, ImVec2(0, 0), ImGuiDockNodeFlags_None);
+    // Outer margin around all panels.
+    const float gap = pal::kPanelGap;
+    ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(gap, 0));
+    const ImVec2 avail = ImGui::GetContentRegionAvail();
+    ImGui::DockSpace(dockId, ImVec2(avail.x - gap, avail.y), ImGuiDockNodeFlags_NoWindowMenuButton);
+    ImGui::PopStyleColor();
     ImGui::End();
     statusBar();
 }
 
-void MainWindow::toolbar() {
-    CommandRegistry& reg = app_.commands();
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
-    ImGui::SetCursorPos(ImGui::GetCursorPos() + ImVec2(6, 4));
-    auto button = [&](const char* action, Icon icon, const char* label) {
-        const Action* a = reg.find(action);
-        if (!a) return;
-        std::string tip = tr(a->label);
-        const std::string sc = reg.shortcutText(action);
-        if (!sc.empty()) tip += "  (" + sc + ")";
-        if (iconTextButton(action, icon, tr(label), tip.c_str(), false, reg.isEnabled(action))) reg.run(action);
-        ImGui::SameLine();
-    };
-    auto separator = [] {
-        ImGui::SameLine(0, 6);
-        const ImVec2 p = ImGui::GetCursorScreenPos();
-        ImGui::GetWindowDrawList()->AddLine(p + ImVec2(0, 3), p + ImVec2(0, ImGui::GetFrameHeight() - 3), ImGui::GetColorU32(ImGuiCol_Separator));
-        ImGui::Dummy(ImVec2(1, ImGui::GetFrameHeight()));
-        ImGui::SameLine(0, 6);
-    };
-    button("file.import", Icon::Plus, "Import");
-    button("file.save", Icon::Save, "Save");
-    separator();
-    button("edit.undo", Icon::Undo, "Undo");
-    button("edit.redo", Icon::Redo, "Redo");
-    separator();
-    button("timeline.split", Icon::Razor, "Split");
-    button("edit.rippleDelete", Icon::Trash, "Ripple Delete");
-    separator();
-    button("timeline.addTitle", Icon::Text, "Text");
-    button("timeline.addSubtitle", Icon::Subtitle, "Subtitle");
-    button("file.addMusic", Icon::Music, "BGM");
-    button("file.addSfx", Icon::Sound, "Sound Effect");
-    separator();
-    if (iconTextButton("##fxpanel", Icon::Effects, tr("Effects"), tr("Show the effects browser"), app_.ui().showEffects)) {
-        app_.ui().showEffects = true;
-        ImGui::SetWindowFocus("###Effects");
-    }
-    ImGui::SameLine();
-    button("file.export", Icon::Export, "Export");
+void MainWindow::header() {
+    if (!ImGui::BeginMenuBar()) return;
+    ImGuiWindow* win = ImGui::GetCurrentWindow();
+    const ImRect bar = win->MenuBarRect();
+    const float barH = bar.GetHeight();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float fs = ImGui::GetFontSize();
 
-    // Workspace switcher (right aligned).
-    struct W {
-        const char* id;
-        const char* label;
-        const char* action;
-    };
-    static const W ws[] = {{"edit", "Edit", "workspace.edit"}, {"color", "Color", "workspace.color"},
-                           {"audio", "Audio", "workspace.audio"}, {"export", "Export", "workspace.export"}};
-    float total = 0;
-    for (const W& w : ws) total += ImGui::CalcTextSize(tr(w.label)).x + ImGui::GetStyle().FramePadding.x * 2 + 4;
-    const float x = ImGui::GetWindowWidth() - total - 12;
-    if (x > ImGui::GetCursorPosX() + 20) {
-        ImGui::SameLine(x);
-        for (const W& w : ws) {
-            const bool active = app_.ui().workspace == w.id;
-            if (active) ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetColorU32(ImGuiCol_ButtonActive));
-            if (ImGui::Button(tr(w.label))) app_.setWorkspace(w.id);
-            if (active) ImGui::PopStyleColor();
-            std::string tip = std::string(tr("Workspace")) + ": " + tr(w.label) + "  (" + reg.shortcutText(w.action) + ")";
-            tooltip(tip.c_str());
-            ImGui::SameLine();
-        }
+    // Logo: rounded gradient tile with a play glyph.
+    const float logo = std::round(barH * 0.58f);
+    const ImVec2 lp(bar.Min.x + 14, bar.Min.y + std::round((barH - logo) * 0.5f));
+    dl->AddRectFilledMultiColor(lp, lp + ImVec2(logo, logo), IM_COL32(146, 108, 255, 255), IM_COL32(96, 120, 255, 255),
+                                IM_COL32(56, 160, 255, 255), IM_COL32(124, 92, 255, 255));
+    // Round the gradient's corners by masking them with the bar colour.
+    const float r = logo * 0.28f;
+    for (int k = 0; k < 4; ++k) {
+        const ImVec2 corner(k % 2 ? lp.x + logo : lp.x, k / 2 ? lp.y + logo : lp.y);
+        const ImVec2 center(k % 2 ? corner.x - r : corner.x + r, k / 2 ? corner.y - r : corner.y + r);
+        const float a0 = k == 0 ? IM_PI : k == 1 ? IM_PI * 1.5f : k == 2 ? IM_PI * 0.5f : 0.0f;
+        dl->PathLineTo(corner);
+        dl->PathArcTo(center, r, a0, a0 + IM_PI * 0.5f, 8);
+        dl->PathFillConcave(pal::kAppBg);
     }
-    ImGui::NewLine();
+    drawIcon(dl, Icon::Play, lp + ImVec2(logo * 0.54f, logo * 0.5f), logo * 0.62f, IM_COL32(255, 255, 255, 255));
+    ImGui::SetCursorScreenPos(ImVec2(lp.x + logo + 10, ImGui::GetCursorScreenPos().y));
+
+    menus();
+
+    // Centre: project name with a saved / unsaved indicator.
+    const bool dirty = app_.doc().dirty();
+    const std::string name = app_.project().name;
+    const char* state = dirty ? tr("Unsaved changes") : tr("Saved");
+    ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+    const ImVec2 nameSize = bold->CalcTextSizeA(fs, FLT_MAX, 0.0f, name.c_str());
+    const ImVec2 stateSize = ImGui::CalcTextSize(state);
+    const float dot = fs * 0.5f;
+    const float centreW = nameSize.x + 14 + dot + 6 + stateSize.x;
+    const float cx = bar.Min.x + (bar.GetWidth() - centreW) * 0.5f;
+    const float menuEnd = ImGui::GetCursorScreenPos().x;
+    if (cx > menuEnd + 20) {
+        const float ty = bar.Min.y + (barH - fs) * 0.5f;
+        dl->AddText(bold, fs, ImVec2(cx, ty), pal::kText, name.c_str());
+        const float dx = cx + nameSize.x + 14;
+        dl->AddCircleFilled(ImVec2(dx + dot * 0.5f, ty + fs * 0.55f), dot * 0.42f, dirty ? pal::kWarning : pal::kSuccess);
+        dl->AddText(ImVec2(dx + dot + 6, ty), pal::kTextMuted, state);
+    }
+
+    // Right: workspace switcher and the export call-to-action.
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 6));
+    const float ctrlH = ImGui::GetFrameHeight();
+    const char* wsLabels[] = {tr("Edit"), tr("Color"), tr("Audio")};
+    const char* wsIds[] = {"edit", "color", "audio"};
+    const char* wsTips[] = {tr("Workspace: Edit (Alt+1)"), tr("Workspace: Color (Alt+2)"), tr("Workspace: Audio (Alt+3)")};
+    float segW = 6;
+    for (const char* l : wsLabels) segW += ImGui::CalcTextSize(l).x + ImGui::GetStyle().FramePadding.x * 2.2f;
+    const char* exportLabel = tr("Export");
+    const float exportW = ImGui::CalcTextSize(exportLabel).x + ctrlH + 24;
+    const float rightX = bar.Max.x - 14 - exportW - 12 - segW;
+    if (rightX > cx + centreW + 16) {
+        const float y = bar.Min.y + (barH - ctrlH) * 0.5f;
+        ImGui::SetCursorScreenPos(ImVec2(rightX, y));
+        int ws = 0;
+        for (int i = 0; i < 3; ++i)
+            if (app_.ui().workspace == wsIds[i]) ws = i;
+        if (app_.ui().workspace == "export") ws = -1;
+        int sel = ws;
+        if (segmented("##ws", wsLabels, 3, &sel, wsTips) || (ws < 0 && sel >= 0 && sel != ws)) app_.setWorkspace(wsIds[sel]);
+        ImGui::SetCursorScreenPos(ImVec2(bar.Max.x - 14 - exportW, y));
+        const ImVec2 bp = ImGui::GetCursorScreenPos();
+        if (primaryButton("##exportcta", ImVec2(exportW, ctrlH))) app_.setWorkspace("export");
+        tooltip(tr("Export the video (Ctrl+M)"));
+        // Icon + label drawn over the button.
+        drawIcon(dl, Icon::Export, bp + ImVec2(ctrlH * 0.55f, ctrlH * 0.5f), ctrlH * 0.42f, IM_COL32(255, 255, 255, 255));
+        dl->AddText(bp + ImVec2(ctrlH * 0.95f, (ctrlH - fs) * 0.5f), IM_COL32(255, 255, 255, 255), exportLabel);
+        if (app_.ui().workspace == "export")
+            dl->AddRect(bp - ImVec2(2, 2), bp + ImVec2(exportW + 2, ctrlH + 2), pal::withAlpha(pal::kAccentHover, 0.7f), pal::kControlRadius + 2, 1.5f);
+    }
     ImGui::PopStyleVar();
-    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2);
+    ImGui::EndMenuBar();
 }
 
 void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace) {
@@ -154,85 +176,95 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
     ImGui::DockBuilderSetNodeSize(dockId, vp->WorkSize);
     ImGuiID top, bottom, left, center, right, timeline, mixer;
     auto dock = [](const char* id, ImGuiID node) { ImGui::DockBuilderDockWindow(id, node); };
+    // Rarely used panels share the right column as tabs behind the main one.
+    auto dockExtras = [&](ImGuiID node) {
+        for (const char* id : {"###History", "###Markers", "###Diagnostics"}) dock(id, node);
+    };
     if (workspace == "color") {
         ui.showColor = ui.showScopes = ui.showViewer = ui.showTimeline = true;
         ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.30f, &bottom, &top);
-        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.25f, &left, &center);
-        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.40f, &right, &center);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.26f, &left, &center);
+        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.38f, &right, &center);
         dock("###Scopes", left);
-        dock("###Media", left);
+        dock("###Library", left);
         dock("###Viewer", center);
         dock("###Color", right);
         dock("###Inspector", right);
-        dock("###Effects", right);
-        dock("###AI", right);
-        dock("###Sounds", right);
+        dock("###Export", right);
+        dockExtras(right);
         dock("###Timeline", bottom);
         dock("###Mixer", bottom);
-        dock("###Export", right);
-        dock("###History", right);
-        dock("###Markers", right);
-        dock("###Diagnostics", right);
     } else if (workspace == "audio") {
-        ui.showMixer = ui.showTimeline = ui.showInspector = true;
+        ui.showMixer = ui.showTimeline = ui.showInspector = ui.showLibrary = true;
+        ui.libraryPage = "audio";
         ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.50f, &bottom, &top);
-        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.25f, &left, &center);
-        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.45f, &right, &center);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.30f, &left, &center);
+        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.42f, &right, &center);
         ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.30f, &mixer, &timeline);
-        dock("###Media", left);
-        dock("###Effects", left);
+        dock("###Library", left);
+        dock("###Scopes", left);
         dock("###Viewer", center);
         dock("###Inspector", right);
-        dock("###AI", right);
-        dock("###Sounds", right);
-        dock("###Markers", right);
         dock("###Color", right);
-        dock("###Scopes", left);
+        dock("###Export", right);
+        dockExtras(right);
         dock("###Timeline", timeline);
         dock("###Mixer", mixer);
-        dock("###Export", right);
-        dock("###History", right);
-        dock("###Diagnostics", right);
     } else if (workspace == "export") {
         ui.showExport = ui.showViewer = ui.showTimeline = true;
-        ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.30f, &bottom, &top);
-        ImGui::DockBuilderSplitNode(top, ImGuiDir_Right, 0.45f, &right, &center);
+        ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.28f, &bottom, &top);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Right, 0.42f, &right, &center);
         dock("###Viewer", center);
+        dock("###Library", center);
+        dock("###Scopes", center);
         dock("###Export", right);
         dock("###Inspector", right);
-        dock("###AI", right);
-        dock("###Sounds", right);
-        dock("###Media", center);
-        dock("###Effects", center);
-        dock("###Scopes", center);
         dock("###Color", right);
+        dockExtras(right);
         dock("###Timeline", bottom);
         dock("###Mixer", bottom);
-        dock("###History", right);
-        dock("###Markers", right);
-        dock("###Diagnostics", right);
     } else {
+        ui.showLibrary = ui.showViewer = ui.showTimeline = ui.showInspector = true;
         ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.42f, &bottom, &top);
-        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.24f, &left, &center);
-        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.34f, &right, &center);
-        ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.12f, &mixer, &timeline);
-        dock("###Media", left);
-        dock("###Sounds", left);
-        dock("###Effects", left);
+        ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.27f, &left, &center);
+        ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.33f, &right, &center);
+        ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.11f, &mixer, &timeline);
+        dock("###Library", left);
         dock("###Scopes", left);
         dock("###Viewer", center);
         dock("###Inspector", right);
-        dock("###AI", right);
         dock("###Color", right);
         dock("###Export", right);
-        dock("###History", right);
-        dock("###Markers", right);
-        dock("###Diagnostics", right);
+        dockExtras(right);
         dock("###Timeline", timeline);
         dock("###Mixer", mixer);
     }
     ImGui::DockBuilderFinish(dockId);
 }
+
+namespace {
+
+// Docked windows have square corners; mask them with the app background so
+// every panel reads as a rounded card.
+void roundPanelCorners() {
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    if (!w->DockIsActive) return;
+    ImDrawList* dl = w->DrawList;
+    const float r = pal::kPanelRadius;
+    const ImVec2 a = w->Pos, b = w->Pos + w->Size;
+    dl->PushClipRect(a, b, false);
+    const ImVec2 corners[4] = {a, ImVec2(b.x, a.y), ImVec2(a.x, b.y), b};
+    const ImVec2 centers[4] = {a + ImVec2(r, r), ImVec2(b.x - r, a.y + r), ImVec2(a.x + r, b.y - r), b - ImVec2(r, r)};
+    const float starts[4] = {IM_PI, IM_PI * 1.5f, IM_PI * 0.5f, 0.0f};
+    for (int i = 0; i < 4; ++i) {
+        dl->PathLineTo(corners[i]);
+        dl->PathArcTo(centers[i], r, starts[i], starts[i] + IM_PI * 0.5f, 8);
+        dl->PathFillConcave(pal::kAppBg);
+    }
+    dl->PopClipRect();
+}
+
+}  // namespace
 
 void MainWindow::panelWindows() {
     UiState& ui = app_.ui();
@@ -240,10 +272,10 @@ void MainWindow::panelWindows() {
         if (!show) return;
         const std::string name = winName(english, id);
         if (ImGui::Begin(name.c_str(), &show, flags)) body();
+        roundPanelCorners();
         ImGui::End();
     };
-    panel(ui.showMedia, "Media", "Media", [&] { media_.draw(app_); });
-    panel(ui.showEffects, "Effects", "Effects", [&] { effects_.draw(app_); });
+    panel(ui.showLibrary, "Library", "Library", [&] { library_.draw(app_); }, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     panel(ui.showScopes, "Scopes", "Scopes", [&] { scopes_.draw(app_); });
     panel(ui.showViewer, "Viewer", "Viewer", [&] { viewer_.draw(app_); }, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
     panel(ui.showInspector, "Inspector", "Inspector", [&] { inspector_.draw(app_); });
@@ -253,8 +285,6 @@ void MainWindow::panelWindows() {
     panel(ui.showMarkers, "Markers", "Markers", [&] { markers_.draw(app_); });
     panel(ui.showDiagnostics, "Diagnostics", "Diagnostics", [&] { diagnostics_.draw(app_); });
     panel(ui.showMixer, "Audio Mixer", "Mixer", [&] { mixer_.draw(app_); });
-    panel(ui.showAi, "AI Tools", "AI", [&] { ai_.draw(app_); });
-    panel(ui.showSounds, "Sounds", "Sounds", [&] { sounds_.draw(app_); });
     panel(ui.showTimeline, "Timeline", "Timeline", [&] { timeline_.draw(app_); },
           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 }
@@ -268,8 +298,7 @@ void MainWindow::menuItem(const char* id, bool checked) {
     if (ImGui::MenuItem(tr(a->label), reg.shortcutText(id).c_str(), checked, reg.isEnabled(id))) reg.run(id);
 }
 
-void MainWindow::menuBar() {
-    if (!ImGui::BeginMenuBar()) return;
+void MainWindow::menus() {
     UiState& ui = app_.ui();
     if (ImGui::BeginMenu(tr("File"))) {
         menuItem("file.new");
@@ -369,12 +398,21 @@ void MainWindow::menuBar() {
     }
     if (ImGui::BeginMenu(tr("View"))) {
         const std::pair<const char*, bool*> views[] = {
-            {"view.media", &ui.showMedia},     {"view.viewer", &ui.showViewer},   {"view.timeline", &ui.showTimeline},
-            {"view.inspector", &ui.showInspector}, {"view.effects", &ui.showEffects}, {"view.color", &ui.showColor},
-            {"view.mixer", &ui.showMixer},     {"view.scopes", &ui.showScopes},   {"view.export", &ui.showExport},
-            {"view.markers", &ui.showMarkers}, {"view.history", &ui.showHistory}, {"view.diagnostics", &ui.showDiagnostics},
-            {"view.ai", &ui.showAi}, {"view.sounds", &ui.showSounds}};
+            {"view.library", &ui.showLibrary}, {"view.viewer", &ui.showViewer},   {"view.timeline", &ui.showTimeline},
+            {"view.inspector", &ui.showInspector}, {"view.color", &ui.showColor},  {"view.mixer", &ui.showMixer},
+            {"view.scopes", &ui.showScopes},   {"view.export", &ui.showExport},   {"view.markers", &ui.showMarkers},
+            {"view.history", &ui.showHistory}, {"view.diagnostics", &ui.showDiagnostics}};
         for (const auto& [id, flag] : views) menuItem(id, *flag);
+        ImGui::Separator();
+        for (const char* id : {"view.media", "view.sounds", "view.text", "view.effects", "view.transitions", "view.ai"}) {
+            static const std::pair<const char*, const char*> pages[] = {{"view.media", "media"}, {"view.sounds", "audio"},
+                                                                        {"view.text", "text"},   {"view.effects", "effects"},
+                                                                        {"view.transitions", "transitions"}, {"view.ai", "ai"}};
+            bool on = false;
+            for (const auto& [cmd, page] : pages)
+                if (std::strcmp(cmd, id) == 0) on = ui.showLibrary && ui.libraryPage == page;
+            menuItem(id, on);
+        }
         ImGui::Separator();
         for (const char* id : {"workspace.edit", "workspace.color", "workspace.audio", "workspace.export"}) {
             const std::string ws = std::string(id).substr(10);
@@ -392,29 +430,27 @@ void MainWindow::menuBar() {
         menuItem("help.dataFolder");
         ImGui::EndMenu();
     }
-    // Right side: project state.
-    const std::string state = app_.doc().dirty() ? std::string(tr("Unsaved changes")) : std::string(tr("Saved"));
-    const float w = ImGui::CalcTextSize(state.c_str()).x + ImGui::CalcTextSize(app_.project().name.c_str()).x + 40;
-    ImGui::SameLine(ImGui::GetWindowWidth() - w);
-    ImGui::TextDisabled("%s  -  %s", app_.project().name.c_str(), state.c_str());
-    ImGui::EndMenuBar();
 }
 
 // ------------------------------------------------------------------ status bar
 
 void MainWindow::statusBar() {
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    const float h = ImGui::GetFrameHeight() + 4;
+    const float h = ImGui::GetFontSize() + 12.0f;
     ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x, vp->WorkPos.y + vp->WorkSize.y - h));
     ImGui::SetNextWindowSize(ImVec2(vp->WorkSize.x, h));
     ImGui::SetNextWindowViewport(vp->ID);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, pal::kAppBg);
     ImGui::Begin("##status", nullptr,
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings |
                      ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav);
     ImGui::PopStyleVar(2);
-    ImGui::AlignTextToFramePadding();
+    ImGui::PopStyleColor();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 wp = ImGui::GetWindowPos();
+    const float ty = wp.y + (h - ImGui::GetFontSize()) * 0.5f - 1;
     std::string left = app_.statusText();
     if (left.empty()) {
         // Context help for the active tool, so every gesture is discoverable.
@@ -431,30 +467,41 @@ void MainWindow::statusBar() {
             break;
         }
     }
-    ImGui::TextDisabled("%s", left.c_str());
-    // Background work
+    dl->AddText(ImVec2(wp.x + 14, ty), pal::kTextFaint, left.c_str());
+    // Background work as a small pill in the middle.
     std::string mid;
+    float progress = -1;
     for (const auto& j : app_.exports().jobs()) {
         const auto p = j->progress();
         if (p.state == exp::ExportState::Rendering || p.state == exp::ExportState::Finalizing || p.state == exp::ExportState::Verifying) {
             char buf[96];
             std::snprintf(buf, sizeof buf, "%s %.0f%%", tr("Exporting"), p.fraction() * 100.0f);
             mid = buf;
+            progress = p.fraction();
         }
     }
     const size_t jobs = Jobs::allActiveJobs().size();
     if (mid.empty() && jobs > 0) mid = std::to_string(jobs) + " " + tr("background task(s)");
-    if (!mid.empty()) {
-        ImGui::SameLine(ImGui::GetWindowWidth() * 0.45f);
-        ImGui::TextUnformatted(mid.c_str());
-    }
     const auto f = app_.preview().latest();
-    char right[160];
-    std::snprintf(right, sizeof right, "%s%s  %dx%d  %.0f ms  |  %s", app_.stats.lowMemory ? "[!] " : "",
-                  app_.settings().proxy.useProxies ? (std::string(tr("Proxy")) + " ").c_str() : "", f.width, f.height, f.renderMs, app_.device().info().adapter.c_str());
+    char right[200];
+    std::snprintf(right, sizeof right, "%s%s%dx%d  ·  %.0f ms  ·  %s", app_.stats.lowMemory ? "! " : "",
+                  app_.settings().proxy.useProxies ? (std::string(tr("Proxy")) + "  ·  ").c_str() : "", f.width, f.height, f.renderMs,
+                  app_.device().info().adapter.c_str());
     const float rw = ImGui::CalcTextSize(right).x;
-    ImGui::SameLine(ImGui::GetWindowWidth() - rw - 12);
-    ImGui::TextDisabled("%s", right);
+    dl->AddText(ImVec2(wp.x + ImGui::GetWindowWidth() - rw - 14, ty), pal::kTextFaint, right);
+    if (!mid.empty()) {
+        const ImVec2 ms = ImGui::CalcTextSize(mid.c_str());
+        const float pw = ms.x + 28 + (progress >= 0 ? 60 : 0);
+        const ImVec2 pa(wp.x + ImGui::GetWindowWidth() * 0.5f - pw * 0.5f, wp.y + 3), pb(pa.x + pw, wp.y + h - 3);
+        dl->AddRectFilled(pa, pb, pal::kPanelRaised, (pb.y - pa.y) * 0.5f);
+        dl->AddCircleFilled(ImVec2(pa.x + 12, (pa.y + pb.y) * 0.5f), 3.5f, pal::kAccent);
+        dl->AddText(ImVec2(pa.x + 22, ty), pal::kTextMuted, mid.c_str());
+        if (progress >= 0) {
+            const ImVec2 ba(pb.x - 66, (pa.y + pb.y) * 0.5f - 2), bb(pb.x - 10, (pa.y + pb.y) * 0.5f + 2);
+            dl->AddRectFilled(ba, bb, pal::kPanelHover, 2);
+            dl->AddRectFilled(ba, ImVec2(ba.x + (bb.x - ba.x) * progress, bb.y), pal::kAccent, 2);
+        }
+    }
     ImGui::End();
 }
 
@@ -508,32 +555,57 @@ void MainWindow::shortcutSheet() {
 void MainWindow::notifications() {
     auto& notes = app_.notifications();
     const ImGuiViewport* vp = ImGui::GetMainViewport();
-    float y = vp->WorkPos.y + vp->WorkSize.y - ImGui::GetFrameHeight() * 2.0f - 8;
+    const float fs = ImGui::GetFontSize();
+    float y = vp->WorkPos.y + vp->WorkSize.y - (fs + 12.0f) - 14;
     uint64_t dismiss = 0;
-    for (auto it = notes.rbegin(); it != notes.rend(); ++it) {
+    int shown = 0;
+    for (auto it = notes.rbegin(); it != notes.rend() && shown < 3; ++it) {
         const Notification& n = *it;
         if (n.level < LogLevel::Info) continue;  // debug-level notes only go to the log
-        ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 12, y), ImGuiCond_Always, ImVec2(1, 1));
+        ++shown;
+        const ImU32 tone = n.level >= LogLevel::Error ? pal::kDanger : n.level == LogLevel::Warning ? pal::kWarning : pal::kAccent;
+        const Icon icon = n.level >= LogLevel::Error || n.level == LogLevel::Warning ? Icon::Warning : Icon::Info;
+        ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 16, y), ImGuiCond_Always, ImVec2(1, 1));
         ImGui::SetNextWindowViewport(vp->ID);
-        ImGui::SetNextWindowBgAlpha(0.95f);
+        ImGui::SetNextWindowSizeConstraints(ImVec2(fs * 16, 0), ImVec2(fs * 24, FLT_MAX));
         const std::string id = "##note" + std::to_string(n.id);
-        ImGui::PushStyleColor(ImGuiCol_Border, n.level >= LogLevel::Error ? IM_COL32(220, 70, 60, 255)
-                                               : n.level == LogLevel::Warning ? IM_COL32(230, 170, 50, 255) : IM_COL32(70, 120, 200, 255));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32, 34, 42, 250));
+        ImGui::PushStyleColor(ImGuiCol_Border, pal::kStrokeStrong);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14, 12));
         ImGui::Begin(id.c_str(), nullptr,
                      ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
                          ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking);
-        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26);
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        dl->AddCircleFilled(p + ImVec2(fs * 0.6f, fs * 0.62f), fs * 0.62f, pal::withAlpha(tone, 0.22f));
+        drawIcon(dl, icon, p + ImVec2(fs * 0.6f, fs * 0.62f), fs * 0.8f, tone);
+        ImGui::Indent(fs * 1.7f);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 19);
         ImGui::TextUnformatted(n.text.c_str());
         ImGui::PopTextWrapPos();
-        if (n.action && ImGui::SmallButton(n.actionLabel.c_str())) {
-            n.action();
-            dismiss = n.id;
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 2));
+        if (n.action) {
+            ImGui::PushStyleColor(ImGuiCol_Text, pal::kAccentText);
+            if (ImGui::SmallButton(n.actionLabel.c_str())) {
+                n.action();
+                dismiss = n.id;
+            }
+            ImGui::PopStyleColor();
+            ImGui::SameLine(0, 16);
         }
-        if (n.action) ImGui::SameLine();
+        ImGui::PushStyleColor(ImGuiCol_Text, pal::kTextMuted);
         if (ImGui::SmallButton(tr("Dismiss"))) dismiss = n.id;
-        y -= ImGui::GetWindowHeight() + 6;
-        ImGui::End();
         ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+        ImGui::PopStyleColor();
+        ImGui::Unindent(fs * 1.7f);
+        y -= ImGui::GetWindowHeight() + 8;
+        ImGui::End();
+        ImGui::PopStyleVar(3);
+        ImGui::PopStyleColor(2);
     }
     if (dismiss) std::erase_if(notes, [&](const Notification& n) { return n.id == dismiss; });
 }
