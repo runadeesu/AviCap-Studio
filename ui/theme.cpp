@@ -1,5 +1,6 @@
 // Dark editor theme (plus a high-contrast variant) and system font loading.
 
+#include <cfloat>
 #include <filesystem>
 #include <optional>
 #include <vector>
@@ -45,7 +46,7 @@ void applyTheme(float scale, bool highContrast) {
     style.TabBarBorderSize = 0.0f;
     style.TabBarOverlineSize = 2.0f;
     style.TabCloseButtonMinWidthSelected = 0.0f;     // close button only on hover
-    style.TabCloseButtonMinWidthUnselected = 1e30f;  // never on inactive tabs
+    style.TabCloseButtonMinWidthUnselected = FLT_MAX;  // never on inactive tabs
     style.DockingSeparatorSize = kPanelGap;
     style.DockingNodeHasCloseButton = false;
     style.WindowMenuButtonPosition = ImGuiDir_None;

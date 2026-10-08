@@ -202,9 +202,9 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.42f, &right, &center);
         ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.30f, &mixer, &timeline);
         dock("###Library", left);
-        dock("###Scopes", left);
         dock("###Viewer", center);
         dock("###Inspector", right);
+        dock("###Scopes", right);
         dock("###Color", right);
         dock("###Export", right);
         dockExtras(right);
@@ -240,6 +240,13 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         dock("###Mixer", mixer);
     }
     ImGui::DockBuilderFinish(dockId);
+    // The main panel of each area becomes its visible tab.
+    focusAfterLayout_ = {"###Library", "###Inspector", "###Viewer", "###Timeline"};
+    if (workspace == "color") focusAfterLayout_ = {"###Scopes", "###Color", "###Viewer", "###Timeline"};
+    if (workspace == "export") focusAfterLayout_ = {"###Export", "###Viewer", "###Timeline"};
+    // Docked tabs follow the focused window, one per frame: focus each main
+    // panel in turn (after one frame for the docking to settle).
+    focusFrames_ = 1;
 }
 
 namespace {
@@ -268,9 +275,17 @@ void roundPanelCorners() {
 
 void MainWindow::panelWindows() {
     UiState& ui = app_.ui();
+    std::string focusNow;
+    if (focusFrames_ > 0) --focusFrames_;
+    else if (!focusAfterLayout_.empty()) {
+        focusNow = focusAfterLayout_.front();
+        focusAfterLayout_.erase(focusAfterLayout_.begin());
+    }
     auto panel = [&](bool& show, const char* english, const char* id, auto&& body, ImGuiWindowFlags flags = 0) {
         if (!show) return;
         const std::string name = winName(english, id);
+        const std::string key = std::string("###") + id;
+        if (key == focusNow) ImGui::SetNextWindowFocus();
         if (ImGui::Begin(name.c_str(), &show, flags)) body();
         roundPanelCorners();
         ImGui::End();
@@ -559,7 +574,7 @@ void MainWindow::notifications() {
     float y = vp->WorkPos.y + vp->WorkSize.y - (fs + 12.0f) - 14;
     uint64_t dismiss = 0;
     int shown = 0;
-    for (auto it = notes.rbegin(); it != notes.rend() && shown < 3; ++it) {
+    for (auto it = notes.rbegin(); it != notes.rend() && shown < 2; ++it) {
         const Notification& n = *it;
         if (n.level < LogLevel::Info) continue;  // debug-level notes only go to the log
         ++shown;
@@ -567,7 +582,7 @@ void MainWindow::notifications() {
         const Icon icon = n.level >= LogLevel::Error || n.level == LogLevel::Warning ? Icon::Warning : Icon::Info;
         ImGui::SetNextWindowPos(ImVec2(vp->WorkPos.x + vp->WorkSize.x - 16, y), ImGuiCond_Always, ImVec2(1, 1));
         ImGui::SetNextWindowViewport(vp->ID);
-        ImGui::SetNextWindowSizeConstraints(ImVec2(fs * 16, 0), ImVec2(fs * 24, FLT_MAX));
+        ImGui::SetNextWindowSizeConstraints(ImVec2(fs * 14, 0), ImVec2(fs * 21, FLT_MAX));
         const std::string id = "##note" + std::to_string(n.id);
         ImGui::PushStyleColor(ImGuiCol_WindowBg, IM_COL32(32, 34, 42, 250));
         ImGui::PushStyleColor(ImGuiCol_Border, pal::kStrokeStrong);
@@ -582,7 +597,7 @@ void MainWindow::notifications() {
         dl->AddCircleFilled(p + ImVec2(fs * 0.6f, fs * 0.62f), fs * 0.62f, pal::withAlpha(tone, 0.22f));
         drawIcon(dl, icon, p + ImVec2(fs * 0.6f, fs * 0.62f), fs * 0.8f, tone);
         ImGui::Indent(fs * 1.7f);
-        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 19);
+        ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + fs * 16);
         ImGui::TextUnformatted(n.text.c_str());
         ImGui::PopTextWrapPos();
         ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));

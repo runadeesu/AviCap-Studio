@@ -14,6 +14,7 @@
 #include "effects/effects.h"
 #include "timeline/edit_ops.h"
 #include "ui/panels.h"
+#include "ui/style.h"
 #include "ui/widgets.h"
 
 namespace avc::ui {
@@ -202,7 +203,7 @@ void TimelinePanel::draw(App& app) {
     layoutLanes(*seq, areaMin_.y, areaW);
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(areaMin_, areaMax_, IM_COL32(28, 29, 33, 255));
+    dl->AddRectFilled(areaMin_, areaMax_, pal::kPanel);
 
     // Lanes input first (so drags update the preview before drawing).
     if (!previewSeq) handleLaneInput(app, *active);
@@ -223,14 +224,14 @@ void TimelinePanel::draw(App& app) {
     for (const Lane& l : lanes_) {
         if (l.y > areaMax_.y || l.y + l.h < areaMin_.y) continue;
         const Track& t = *seq->tracks[static_cast<size_t>(l.track)];
-        ImU32 bg = l.audio ? IM_COL32(33, 37, 35, 255) : IM_COL32(34, 35, 41, 255);
-        if (t.locked) bg = IM_COL32(40, 34, 34, 255);
-        dl->AddRectFilled(ImVec2(areaMin_.x, l.y), ImVec2(areaMax_.x, l.y + l.h), bg);
+        ImU32 bg = l.audio ? IM_COL32(255, 255, 255, 5) : IM_COL32(255, 255, 255, 7);
+        if (t.locked) bg = IM_COL32(255, 80, 80, 14);
+        dl->AddRectFilled(ImVec2(areaMin_.x, l.y + 1), ImVec2(areaMax_.x, l.y + l.h - 1), bg);
     }
     // Work area shading
     if (seq->workArea) {
         const float x0 = timeToX(seq->workArea->start), x1 = timeToX(seq->workArea->end());
-        dl->AddRectFilled(ImVec2(x0, areaMin_.y), ImVec2(x1, areaMax_.y), IM_COL32(90, 140, 220, 18));
+        dl->AddRectFilled(ImVec2(x0, areaMin_.y), ImVec2(x1, areaMax_.y), pal::withAlpha(pal::kAccent, 0.07f));
     }
     // Analysis overlay (e.g. the silence that would be removed).
     if (const TimelineOverlay* ov = previewSeq ? nullptr : app.ai().overlay()) {
@@ -255,7 +256,7 @@ void TimelinePanel::draw(App& app) {
         const char* hint = tr("Drag media here from the Media panel (Ctrl+drop inserts). Double-click media to add it at the playhead.");
         const ImVec2 ts = ImGui::CalcTextSize(hint);
         const ImVec2 c((areaMin_.x + areaMax_.x) * 0.5f, (areaMin_.y + areaMax_.y) * 0.5f);
-        dl->AddText(ImVec2(std::max(areaMin_.x + 8, c.x - ts.x * 0.5f), c.y - ts.y * 0.5f), IM_COL32(150, 150, 165, 255), hint);
+        dl->AddText(ImVec2(std::max(areaMin_.x + 8, c.x - ts.x * 0.5f), c.y - ts.y * 0.5f), pal::kTextFaint, hint);
     }
 
     // Marquee
@@ -276,12 +277,12 @@ void TimelinePanel::draw(App& app) {
     }
     // Playhead
     const float px = timeToX(app.playhead());
-    dl->AddLine(ImVec2(px, areaMin_.y), ImVec2(px, areaMax_.y), col::kPlayhead, 1.5f);
+    dl->AddLine(ImVec2(px, areaMin_.y), ImVec2(px, areaMax_.y), col::kPlayhead, 2.0f);
     // Audio/video divider
     for (size_t i = 0; i + 1 < lanes_.size(); ++i)
         if (!lanes_[i].audio && lanes_[i + 1].audio) {
             const float y = lanes_[i].y + lanes_[i].h + kDividerH * 0.5f;
-            dl->AddLine(ImVec2(areaMin_.x, y), ImVec2(areaMax_.x, y), IM_COL32(80, 80, 90, 255), 2.0f);
+            dl->AddLine(ImVec2(areaMin_.x - headerW_, y), ImVec2(areaMax_.x, y), pal::kStrokeStrong, 1.0f);
         }
     dl->PopClipRect();
 
@@ -289,9 +290,10 @@ void TimelinePanel::draw(App& app) {
     drawHeaders(app, *seq, dl);
 
     // Corner: timecode of the playhead.
-    dl->AddRectFilled(origin, ImVec2(areaMin_.x, areaMin_.y), IM_COL32(24, 24, 28, 255));
+    dl->AddRectFilled(origin, ImVec2(areaMin_.x, areaMin_.y), pal::kPanel);
     const std::string tc = formatTime(app.playhead(), seq->frameRate);
-    dl->AddText(ImVec2(origin.x + 8, origin.y + (rulerH_ - fs) * 0.5f), IM_COL32(235, 235, 235, 255), tc.c_str());
+    ImFont* tcFont = boldFont() ? boldFont() : ImGui::GetFont();
+    dl->AddText(tcFont, fs * 1.08f, ImVec2(origin.x + 10, origin.y + (rulerH_ - fs * 1.08f) * 0.5f), pal::kText, tc.c_str());
 
     // Mouse wheel: zoom (Ctrl), horizontal scroll (Shift), vertical scroll.
     const ImGuiIO& io = ImGui::GetIO();
@@ -359,6 +361,31 @@ void TimelinePanel::applyZoomRequests(App& app, const Sequence& seq) {
 
 void TimelinePanel::drawToolbar(App& app) {
     const float s = ImGui::GetFrameHeight();
+    CommandRegistry& reg = app.commands();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    auto tip = [&](const char* label, const char* action) {
+        std::string t = tr(label);
+        const std::string sc = action ? reg.shortcutText(action) : std::string();
+        if (!sc.empty()) t += "  (" + sc + ")";
+        return t;
+    };
+    auto groupBg = [&](int buttons) {
+        // Soft rounded container behind a group of icon buttons.
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        dl->AddRectFilled(p - ImVec2(3, 3), p + ImVec2(static_cast<float>(buttons) * (s + 2) + 1, s + 3), pal::kPanelRaised, pal::kControlRadius + 2);
+    };
+    auto gap = [] { ImGui::SameLine(0, 14); };
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 3);
+
+    // History
+    groupBg(2);
+    if (iconButton("##undo", Icon::Undo, tip("Undo", "edit.undo").c_str(), false, s)) reg.run("edit.undo");
+    ImGui::SameLine(0, 2);
+    if (iconButton("##redo", Icon::Redo, tip("Redo", "edit.redo").c_str(), false, s)) reg.run("edit.redo");
+    gap();
+
+    // Tools
     struct T {
         Tool tool;
         Icon icon;
@@ -367,35 +394,38 @@ void TimelinePanel::drawToolbar(App& app) {
     static const T tools[] = {{Tool::Select, Icon::Pointer, "tool.select"}, {Tool::Razor, Icon::Razor, "tool.razor"},
                               {Tool::Ripple, Icon::ToEnd, "tool.ripple"},   {Tool::Roll, Icon::Link, "tool.roll"},
                               {Tool::Slip, Icon::Film, "tool.slip"},       {Tool::Slide, Icon::StepForward, "tool.slide"}};
+    groupBg(static_cast<int>(std::size(tools)));
     for (const T& t : tools) {
         ImGui::PushID(t.action);
-        std::string tip = std::string(tr(toolLabel(t.tool)));
-        const std::string sc = app.commands().shortcutText(t.action);
-        if (!sc.empty()) tip += " (" + sc + ")";
-        if (iconButton("##tool", t.icon, tip.c_str(), app.tool == t.tool, s)) app.tool = t.tool;
+        if (iconButton("##tool", t.icon, tip(toolLabel(t.tool), t.action).c_str(), app.tool == t.tool, s)) app.tool = t.tool;
         ImGui::PopID();
         ImGui::SameLine(0, 2);
     }
-    ImGui::SameLine(0, 10);
-    if (iconButton("##snap", Icon::Magnet, tr("Snapping (S)"), app.snapping, s)) app.commands().run("timeline.snapping");
+    ImGui::SameLine(0, 12);
+
+    // Edit actions
+    groupBg(4);
+    if (iconButton("##split", Icon::Razor, tip("Split at Playhead", "timeline.split").c_str(), false, s)) app.splitAtPlayhead(false);
     ImGui::SameLine(0, 2);
-    if (iconButton("##linked", Icon::Link, tr("Linked Selection"), app.linkedSelection, s)) app.linkedSelection = !app.linkedSelection;
-    ImGui::SameLine(0, 10);
-    if (iconButton("##split", Icon::Razor, tr("Split at Playhead (Ctrl+K)"), false, s)) app.splitAtPlayhead(false);
+    ImGui::BeginDisabled(app.selection.clips.empty());
+    if (iconButton("##delete", Icon::Trash, tip("Ripple Delete", "edit.rippleDelete").c_str(), false, s)) app.deleteSelection(true);
+    ImGui::EndDisabled();
     ImGui::SameLine(0, 2);
-    if (iconButton("##marker", Icon::Marker, tr("Add Marker (M)"), false, s)) app.addMarker();
+    if (iconButton("##marker", Icon::Marker, tip("Add Marker", "timeline.marker").c_str(), false, s)) app.addMarker();
     ImGui::SameLine(0, 2);
-    if (iconButton("##title", Icon::Text, tr("Add Title (Ctrl+T)"), false, s)) app.addTextClip(tr("Title"));
-    ImGui::SameLine(0, 10);
-    if (iconButton("##zoomout", Icon::Minus, tr("Zoom Out (-)"), false, s)) --app.ui().zoomSteps;
+    if (iconButton("##title", Icon::Text, tip("Add Title", "timeline.addTitle").c_str(), false, s)) app.addTextClip(tr("Title"));
+    gap();
+
+    // Modes
+    groupBg(2);
+    if (iconButton("##snap", Icon::Magnet, tip("Snapping", "timeline.snapping").c_str(), app.snapping, s)) reg.run("timeline.snapping");
     ImGui::SameLine(0, 2);
-    if (iconButton("##zoomin", Icon::Plus, tr("Zoom In (=)"), false, s)) ++app.ui().zoomSteps;
-    ImGui::SameLine(0, 2);
-    if (ImGui::Button(tr("Fit"))) app.ui().zoomToFit = true;
-    tooltip(tr("Zoom to Fit (Shift+Z)"));
+    if (iconButton("##linked", Icon::Link, tip("Linked Selection", "timeline.linked").c_str(), app.linkedSelection, s))
+        app.linkedSelection = !app.linkedSelection;
+
     if (app.project().sequences.size() > 1) {
-        ImGui::SameLine(0, 16);
-        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 10);
+        gap();
+        ImGui::SetNextItemWidth(ImGui::GetFontSize() * 9);
         const Sequence* cur = app.sequence();
         if (ImGui::BeginCombo("##seq", cur ? cur->name.c_str() : "")) {
             for (const auto& sp : app.project().sequences)
@@ -411,17 +441,53 @@ void TimelinePanel::drawToolbar(App& app) {
         }
         tooltip(tr("Sequence"));
     }
+
+    // Right: sequence format and zoom slider.
+    const float fs = ImGui::GetFontSize();
+    const float sliderW = fs * 7.0f;
+    const float rightW = s + 4 + sliderW + 4 + s + 8 + s;
+    const float rightX = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x - rightW;
     if (const Sequence* seq = app.sequence()) {
+        char info[160];
+        std::snprintf(info, sizeof info, "%dx%d  ·  %s fps  ·  %s", seq->width, seq->height, fpsText(seq->frameRate).c_str(),
+                      formatTime(seq->duration(), seq->frameRate).c_str());
+        const float iw = ImGui::CalcTextSize(info).x;
         ImGui::SameLine(0, 16);
-        ImGui::TextDisabled("%s  %dx%d  %s fps  %s %s", seq->name.c_str(), seq->width, seq->height, fpsText(seq->frameRate).c_str(),
-                            tr("Duration"), formatTime(seq->duration(), seq->frameRate).c_str());
+        const float x = std::max(ImGui::GetCursorScreenPos().x, rightX - iw - 18);
+        if (x + iw < rightX - 8) {
+            ImGui::SetCursorScreenPos(ImVec2(x, ImGui::GetCursorScreenPos().y));
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextDisabled("%s", info);
+        }
     }
+    ImGui::SameLine();
+    ImGui::SetCursorScreenPos(ImVec2(std::max(ImGui::GetCursorScreenPos().x, rightX), ImGui::GetCursorScreenPos().y));
+    if (iconButton("##zoomout", Icon::Minus, tip("Zoom Out", "timeline.zoomOut").c_str(), false, s)) --app.ui().zoomSteps;
+    ImGui::SameLine(0, 4);
+    // Logarithmic zoom slider (pixels per second), keeps the playhead in place.
+    float z = static_cast<float>(std::log(std::clamp(pps_, 2.0, 4000.0) / 2.0) / std::log(2000.0));
+    ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y + (s - ImGui::GetFrameHeight() * 0.7f) * 0.5f));
+    if (slimSlider("##zoom", &z, 0.0f, 1.0f, sliderW)) {
+        const double newPps = 2.0 * std::pow(2000.0, static_cast<double>(z));
+        const double ph = app.playhead().seconds();
+        const double phX = (ph - scroll_) * pps_;
+        pps_ = newPps;
+        scroll_ = std::max(0.0, ph - phX / pps_);
+        fitPending_ = false;
+    }
+    tooltip(tr("Zoom"));
+    ImGui::SameLine(0, 4);
+    if (iconButton("##zoomin", Icon::Plus, tip("Zoom In", "timeline.zoomIn").c_str(), false, s)) ++app.ui().zoomSteps;
+    ImGui::SameLine(0, 8);
+    if (iconButton("##fit", Icon::Fullscreen, tip("Zoom to Fit", "timeline.zoomFit").c_str(), false, s)) app.ui().zoomToFit = true;
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 3);
 }
 
 // ------------------------------------------------------------------ ruler
 
 void TimelinePanel::drawRuler(App& app, const Sequence& seq, ImDrawList* dl, ImVec2 min, ImVec2 max) {
-    dl->AddRectFilled(min, max, IM_COL32(24, 24, 28, 255));
+    dl->AddRectFilled(min, max, pal::kPanel);
+    dl->AddLine(ImVec2(min.x, max.y - 0.5f), ImVec2(max.x, max.y - 0.5f), pal::kStroke);
     const double fps = seq.frameRate.toDouble();
     const double major = niceStep(90.0 / pps_, fps);
     const double minor = major / (major >= 1.0 ? 5.0 : std::max(1.0, std::round(major * fps)));
@@ -429,18 +495,19 @@ void TimelinePanel::drawRuler(App& app, const Sequence& seq, ImDrawList* dl, ImV
     dl->PushClipRect(min, max, true);
     if (seq.workArea) {
         const float x0 = timeToX(seq.workArea->start), x1 = timeToX(seq.workArea->end());
-        dl->AddRectFilled(ImVec2(x0, max.y - 6), ImVec2(x1, max.y), IM_COL32(90, 140, 220, 200));
+        dl->AddRectFilled(ImVec2(x0, max.y - 5), ImVec2(x1, max.y - 1), pal::withAlpha(pal::kAccent, 0.85f), 2.0f);
     }
     if (minor * pps_ >= 4.0)
         for (double t = std::floor(t0 / minor) * minor; t <= t1; t += minor) {
             const float x = min.x + static_cast<float>((t - scroll_) * pps_);
-            dl->AddLine(ImVec2(x, max.y - 5), ImVec2(x, max.y), IM_COL32(110, 110, 115, 255));
+            dl->AddLine(ImVec2(x, max.y - 4), ImVec2(x, max.y), IM_COL32(255, 255, 255, 34));
         }
     for (double t = std::floor(t0 / major) * major; t <= t1 + major; t += major) {
         const float x = min.x + static_cast<float>((t - scroll_) * pps_);
-        dl->AddLine(ImVec2(x, max.y - 11), ImVec2(x, max.y), IM_COL32(160, 160, 165, 255));
+        dl->AddLine(ImVec2(x, max.y - 9), ImVec2(x, max.y), IM_COL32(255, 255, 255, 80));
         const std::string label = formatTime(Time::fromSeconds(t + 1e-9), seq.frameRate);
-        dl->AddText(ImVec2(x + 3, min.y + 2), IM_COL32(170, 170, 178, 255), label.c_str());
+        const float small = ImGui::GetFontSize() * 0.8f;
+        dl->AddText(ImGui::GetFont(), small, ImVec2(x + 4, min.y + 3), pal::kTextFaint, label.c_str());
     }
     // Markers
     for (const Marker& m : seq.markers) {
@@ -455,8 +522,11 @@ void TimelinePanel::drawRuler(App& app, const Sequence& seq, ImDrawList* dl, ImV
     }
     // Playhead head
     const float px = timeToX(app.playhead());
-    dl->AddTriangleFilled(ImVec2(px - 6, max.y - 12), ImVec2(px + 6, max.y - 12), ImVec2(px, max.y), col::kPlayhead);
-    dl->AddLine(ImVec2(px, min.y), ImVec2(px, max.y), col::kPlayhead, 1.5f);
+    // Rounded pin: a small pill with a point at the bottom.
+    const float pw = 6.0f, ptop = max.y - 16.0f;
+    dl->AddRectFilled(ImVec2(px - pw, ptop), ImVec2(px + pw, max.y - 6), col::kPlayhead, 3.0f);
+    dl->AddTriangleFilled(ImVec2(px - pw, max.y - 7), ImVec2(px + pw, max.y - 7), ImVec2(px, max.y), col::kPlayhead);
+    dl->AddLine(ImVec2(px, max.y - 6), ImVec2(px, max.y), col::kPlayhead, 2.0f);
     dl->PopClipRect();
 
     // Interaction: markers (click/drag), scrubbing elsewhere.
@@ -545,7 +615,7 @@ void TimelinePanel::drawRuler(App& app, const Sequence& seq, ImDrawList* dl, ImV
 
 void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
     const ImVec2 hmin(areaMin_.x - headerW_, areaMin_.y), hmax(areaMin_.x, areaMax_.y);
-    dl->AddRectFilled(hmin, hmax, IM_COL32(26, 26, 30, 255));
+    dl->AddRectFilled(hmin, hmax, pal::kPanel);
     ImGui::PushClipRect(hmin, hmax, true);
     const float s = ImGui::GetFontSize() * 1.25f;
     const int targetV = app.targetVideoTrackIndex(), targetA = app.targetAudioTrackIndex();
@@ -554,10 +624,17 @@ void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
         const Track& t = *seq.tracks[static_cast<size_t>(l.track)];
         ImGui::PushID(static_cast<int>(t.id));
         const ImVec2 a(hmin.x, l.y), b(hmax.x - 1, l.y + l.h);
-        dl->AddRectFilled(a, b, l.audio ? IM_COL32(36, 42, 39, 255) : IM_COL32(38, 39, 47, 255));
+        // Track card with a colour stripe for the track type.
+        const ImVec2 ca(a.x + 6, a.y + 2), cb(b.x - 4, b.y - 2);
+        dl->AddRectFilled(ca, cb, pal::kPanelRaised, 6.0f);
+        const ImU32 stripe = t.kind == TrackKind::Subtitle ? pal::kClipSubtitle
+                             : t.kind == TrackKind::Text   ? pal::kClipText
+                             : l.audio                     ? pal::kClipAudio
+                                                           : pal::kClipVideo;
+        dl->AddRectFilled(ca + ImVec2(0, 4), ImVec2(ca.x + 3, cb.y - 4), stripe, 1.5f);
         // Target patch (sized to the track name, within limits)
         const bool targeted = l.track == targetV || l.track == targetA;
-        const ImVec2 tp(a.x + 4, a.y + 4);
+        const ImVec2 tp(a.x + 14, a.y + std::max(4.0f, std::min(8.0f, (l.h - s) * 0.5f)));
         const std::string label = trackLabel(seq, l.track);
         const float patchW = std::clamp(ImGui::CalcTextSize(label.c_str()).x + 8.0f, s * 1.6f, headerW_ - s * 3.6f - 12.0f);
         ImGui::SetCursorScreenPos(tp);
@@ -574,9 +651,9 @@ void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
             }
         }
         tooltip(tr("Target track for insert and paste"));
-        dl->AddRectFilled(tp, tp + ImVec2(patchW, s), targeted ? IM_COL32(70, 120, 200, 255) : IM_COL32(60, 60, 68, 255), 3.0f);
+        dl->AddRectFilled(tp, tp + ImVec2(patchW, s), targeted ? pal::kAccent : pal::kPanelHover, 5.0f);
         dl->PushClipRect(tp, tp + ImVec2(patchW, s), true);
-        dl->AddText(tp + ImVec2(4, (s - ImGui::GetFontSize()) * 0.5f), IM_COL32(230, 230, 235, 255), label.c_str());
+        dl->AddText(tp + ImVec2(5, (s - ImGui::GetFontSize()) * 0.5f), targeted ? IM_COL32(255, 255, 255, 255) : pal::kText, label.c_str());
         dl->PopClipRect();
 
         // Toggles
@@ -627,7 +704,7 @@ void TimelinePanel::drawHeaders(App& app, const Sequence& seq, ImDrawList* dl) {
         }
         if (l.h > s * 2.2f) {
             const char* kind = tr(trackKindName(t.kind));
-            dl->AddText(ImVec2(tp.x, tp.y + s + 4), IM_COL32(140, 140, 150, 255), kind);
+            dl->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 0.82f, ImVec2(tp.x + 2, tp.y + s + 4), pal::kTextFaint, kind);
         }
         // Context menu & rename
         ImGui::SetCursorScreenPos(ImVec2(a.x, a.y + s + 6));
@@ -730,41 +807,46 @@ void TimelinePanel::drawClips(App& app, const Sequence& seq, ImDrawList* dl) {
 void TimelinePanel::drawClip(App& app, const Sequence& seq, const Track& track, const Clip& c, const Lane& lane, ImDrawList* dl) {
     (void)seq;
     float x0 = timeToX(c.start), x1 = timeToX(c.end());
-    const float y0 = lane.y + 1, y1 = lane.y + lane.h - 1;
+    const float y0 = lane.y + 2, y1 = lane.y + lane.h - 2;
     if (x1 - x0 < 1.0f) x1 = x0 + 1.0f;
     const float vx0 = std::max(x0, areaMin_.x - 2), vx1 = std::min(x1, areaMax_.x + 2);
     const MediaItem* media = c.kind == ClipKind::Media ? app.project().findMedia(c.media) : nullptr;
     const bool offline = media && app.mediaOffline(media->id);
     const bool selected = app.selection.clips.count(c.id) != 0;
+    const bool hovered = ImGui::IsMouseHoveringRect(ImVec2(x0, y0), ImVec2(x1, y1)) && ImGui::IsWindowHovered();
     ImU32 base = clipColor(c, track.kind, media ? media->info.kind : MediaKind::Unknown);
     if (offline) base = col::kOffline;
     const float alpha = c.enabled ? 1.0f : 0.35f;
-    const ImU32 body = scaleColor(base, selected ? 1.25f : 0.85f, alpha);
-    const ImU32 bar = scaleColor(base, selected ? 1.05f : 0.65f, alpha);
-    dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), body, 3.0f);
-    const float barH = std::min(kNameBar * ImGui::GetFontSize() / 15.0f, (y1 - y0) * 0.5f);
-    dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y0 + barH), bar, 3.0f, ImDrawFlags_RoundCornersTop);
+    const float r = std::min(6.0f, (x1 - x0) * 0.5f);
+    const bool visual = isVisualTrack(track.kind);
+    const float fs = ImGui::GetFontSize();
+    const float h = y1 - y0;
 
-    const float contentTop = y0 + barH;
-    const float contentH = y1 - contentTop - 1;
-    // Thumbnails (filmstrip) for video clips.
-    if (media && !offline && isVisualTrack(track.kind) && media->info.hasVideo() && contentH >= 18 && x1 - x0 > 8) {
+    // Body: a deep tint of the clip colour with a lighter top edge.
+    dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), scaleColor(base, visual ? 0.42f : 0.36f, alpha), r);
+    // Thumbnails fill video clips (filmstrip).
+    if (media && !offline && visual && media->info.hasVideo() && h >= 18 && x1 - x0 > 8) {
         const auto* v = media->info.primaryVideo();
         const float aspect = v && v->height > 0 ? static_cast<float>(v->width) / static_cast<float>(v->height) : 16.0f / 9.0f;
-        const float tw = std::max(16.0f, contentH * aspect);
+        const float tw = std::max(16.0f, h * aspect);
         int drawn = 0;
         const float start = std::max(x0, std::floor((vx0 - x0) / tw) * tw + x0);
+        dl->PushClipRect(ImVec2(std::max(x0 + 1, vx0), y0 + 1), ImVec2(std::min(x1 - 1, vx1), y1 - 1), true);
         for (float x = start; x < vx1 && drawn < 64; x += tw, ++drawn) {
             const Time at = c.sourceTimeAt(xToTime(x));
             const ThumbnailRef th = app.assets().thumbnail(*media, at, 160);
             if (!th || th.texture == ImTextureID_Invalid) continue;
             const float w = std::min(tw, x1 - x);
-            dl->AddImage(ImTextureRef(th.texture), ImVec2(x, contentTop), ImVec2(x + w, contentTop + contentH), ImVec2(0, 0),
-                         ImVec2(w / tw, 1), IM_COL32(255, 255, 255, static_cast<int>(alpha * 230)));
+            dl->AddImage(ImTextureRef(th.texture), ImVec2(x, y0), ImVec2(x + w, y1), ImVec2(0, 0), ImVec2(w / tw, 1),
+                         IM_COL32(255, 255, 255, static_cast<int>(alpha * 235)));
         }
+        dl->PopClipRect();
+        // Gradient under the name so it stays readable over any picture.
+        dl->AddRectFilledMultiColor(ImVec2(vx0, y0), ImVec2(vx1, y0 + std::min(h, fs * 1.6f)), IM_COL32(0, 0, 0, 150), IM_COL32(0, 0, 0, 150),
+                                    IM_COL32(0, 0, 0, 0), IM_COL32(0, 0, 0, 0));
     }
-    // Waveforms for audio clips.
-    if (media && !offline && !isVisualTrack(track.kind) && media->info.hasAudio() && contentH >= 10) {
+    // Waveforms: filled, in a light tint of the clip colour.
+    if (media && !offline && !visual && media->info.hasAudio() && h >= 10) {
         if (auto peaks = app.assets().waveform(*media)) {
             const int cols = std::max(1, static_cast<int>((vx1 - vx0) / 2.0f));
             Time sa = c.sourceTimeAt(xToTime(vx0)), sb = c.sourceTimeAt(xToTime(vx1));
@@ -773,31 +855,39 @@ void TimelinePanel::drawClip(App& app, const Sequence& seq, const Track& track, 
             if (c.freezeFrame || sb <= sa) sb = sa + Time::fromMilliseconds(1);
             const auto mm = peaks->query(sa.seconds(), sb.seconds(), cols, -1);
             const float gain = std::pow(10.0f, (c.audio.evaluate1("volume", Time{0}, 0.0f) + c.gainDb) / 20.0f);
-            const float mid = contentTop + contentH * 0.5f;
-            const float half = contentH * 0.48f;
-            const ImU32 wc = scaleColor(base, 1.7f, alpha);
+            const float top = y0 + std::min(h * 0.3f, fs * 1.2f);
+            const float mid = (top + y1) * 0.5f;
+            const float half = (y1 - top) * 0.46f;
+            const ImU32 wc = scaleColor(base, 1.55f, alpha);
             for (int i = 0; i < static_cast<int>(mm.size()); ++i) {
-                const auto& p = mm[static_cast<size_t>(rev ? mm.size() - 1 - static_cast<size_t>(i) : static_cast<size_t>(i))];
+                const auto& pk = mm[static_cast<size_t>(rev ? mm.size() - 1 - static_cast<size_t>(i) : static_cast<size_t>(i))];
                 const float x = vx0 + static_cast<float>(i) * 2.0f;
-                const float lo = std::clamp(p.first * gain, -1.0f, 1.0f), hi = std::clamp(p.second * gain, -1.0f, 1.0f);
-                dl->AddLine(ImVec2(x, mid - hi * half), ImVec2(x, mid - lo * half + 1), wc, 1.5f);
+                const float lo = std::clamp(pk.first * gain, -1.0f, 1.0f), hi = std::clamp(pk.second * gain, -1.0f, 1.0f);
+                dl->AddRectFilled(ImVec2(x, mid - hi * half), ImVec2(x + 1.6f, mid - lo * half + 1), wc);
             }
         }
     }
-    // Text preview for titles / subtitles.
-    if ((c.kind == ClipKind::Text || c.kind == ClipKind::Subtitle) && contentH > ImGui::GetFontSize()) {
-        dl->PushClipRect(ImVec2(vx0, contentTop), ImVec2(vx1, y1), true);
-        dl->AddText(ImVec2(std::max(x0, areaMin_.x) + 4, contentTop + 2), IM_COL32(255, 255, 255, static_cast<int>(alpha * 220)),
-                    c.text.c_str());
+    // Text and subtitle clips show their words (no separate name).
+    const bool textual = c.kind == ClipKind::Text || c.kind == ClipKind::Subtitle;
+    if (textual) {
+        dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), scaleColor(base, 0.78f, alpha), r);
+        dl->PushClipRect(ImVec2(vx0 + 2, y0), ImVec2(std::max(vx0 + 3, vx1 - 4), y1), true);
+        const float tx = std::max(x0, areaMin_.x) + 6;
+        drawIcon(dl, c.kind == ClipKind::Text ? Icon::Text : Icon::Subtitle, ImVec2(tx + fs * 0.45f, (y0 + y1) * 0.5f), fs * 0.8f,
+                 IM_COL32(255, 255, 255, static_cast<int>(alpha * 200)));
+        std::string firstLine = c.text.substr(0, c.text.find('\n'));
+        dl->AddText(ImVec2(tx + fs * 1.15f, (y0 + y1 - fs) * 0.5f), IM_COL32(255, 255, 255, static_cast<int>(alpha * 240)), firstLine.c_str());
         dl->PopClipRect();
+    } else if (c.kind != ClipKind::Media) {
+        dl->AddRectFilled(ImVec2(x0, y0), ImVec2(x1, y1), scaleColor(base, 0.75f, alpha), r);
     }
-    // Transitions
-    auto drawTransition = [&](const TransitionSpec& tr, bool head) {
-        const float w = static_cast<float>(tr.duration.seconds() * pps_);
+    // Transitions: a translucent wedge with the overlap direction.
+    auto drawTransition = [&](const TransitionSpec& t, bool head) {
+        const float w = static_cast<float>(t.duration.seconds() * pps_);
         const float xa = head ? x0 : x1 - w, xb = head ? x0 + w : x1;
-        dl->AddRectFilled(ImVec2(xa, y0), ImVec2(xb, y1), IM_COL32(255, 255, 255, 40));
-        if (head) dl->AddLine(ImVec2(xa, y1), ImVec2(xb, y0), IM_COL32(255, 255, 255, 140), 1.5f);
-        else dl->AddLine(ImVec2(xa, y0), ImVec2(xb, y1), IM_COL32(255, 255, 255, 140), 1.5f);
+        dl->AddRectFilled(ImVec2(xa, y0), ImVec2(xb, y1), IM_COL32(255, 255, 255, 36), head ? r : 0.0f);
+        if (head) dl->AddLine(ImVec2(xa, y1), ImVec2(xb, y0), IM_COL32(255, 255, 255, 150), 1.5f);
+        else dl->AddLine(ImVec2(xa, y0), ImVec2(xb, y1), IM_COL32(255, 255, 255, 150), 1.5f);
     };
     if (c.transitionIn && c.transitionIn->duration.ticks > 0) drawTransition(*c.transitionIn, true);
     if (c.transitionOut && c.transitionOut->duration.ticks > 0) drawTransition(*c.transitionOut, false);
@@ -808,7 +898,7 @@ void TimelinePanel::drawClip(App& app, const Sequence& seq, const Track& track, 
             for (const auto& [id, p] : ps.items())
                 for (const auto& k : p.keys()) {
                     const float kx = timeToX(c.start + k.time);
-                    if (kx >= x0 && kx <= x1) drawIcon(dl, Icon::KeyframeFilled, ImVec2(kx, y1 - 5), 8.0f, col::kKeyframe);
+                    if (kx >= x0 && kx <= x1) drawIcon(dl, Icon::KeyframeFilled, ImVec2(kx, y1 - 6), 8.0f, col::kKeyframe);
                 }
         };
         keys(c.transform);
@@ -817,26 +907,50 @@ void TimelinePanel::drawClip(App& app, const Sequence& seq, const Track& track, 
         for (const auto& e : c.effects) keys(e.params);
     }
 
-    // Name bar label + badges
-    std::string label = c.name.empty() ? std::string(tr(clipKindName(c.kind))) : c.name;
-    if (offline) label = std::string(tr("Media Offline")) + " - " + label;
-    if (!c.effects.empty()) label += "  fx";
-    if (c.speed != Rational{1, 1}) {
-        char buf[32];
-        std::snprintf(buf, sizeof buf, "  %.0f%%", c.speed.toDouble() * 100.0);
-        label += buf;
+    // Name chip (media and other clips) and small badges.
+    if (!textual && x1 - x0 > 14) {
+        std::string label = c.name.empty() ? std::string(tr(clipKindName(c.kind))) : c.name;
+        if (offline) label = std::string(tr("Media Offline")) + " - " + label;
+        if (!c.enabled) label += std::string("  (") + tr("Disabled") + ")";
+        std::string badges;
+        if (!c.effects.empty()) badges += " fx";
+        if (c.speed != Rational{1, 1}) {
+            char buf[32];
+            std::snprintf(buf, sizeof buf, " %.0f%%", c.speed.toDouble() * 100.0);
+            badges += buf;
+        }
+        if (c.reverse) badges += " <<";
+        if (c.freezeFrame) badges += " ||";
+        const float small = fs * 0.86f;
+        ImFont* font = ImGui::GetFont();
+        const ImVec2 ts = font->CalcTextSizeA(small, FLT_MAX, 0.0f, label.c_str());
+        const ImVec2 bs = badges.empty() ? ImVec2(0, 0) : font->CalcTextSizeA(small, FLT_MAX, 0.0f, badges.c_str());
+        const float cx = std::max(x0, areaMin_.x) + 4;
+        const float maxW = std::max(0.0f, vx1 - cx - 4);
+        const float chipW = std::min(maxW, ts.x + bs.x + 10);
+        if (chipW > 12) {
+            const ImVec2 ca(cx, y0 + 3), cb(cx + chipW, y0 + 3 + small + 4);
+            dl->AddRectFilled(ca, cb, IM_COL32(8, 9, 12, static_cast<int>(alpha * 150)), 4.0f);
+            dl->PushClipRect(ca, cb, true);
+            dl->AddText(font, small, ca + ImVec2(5, 2), IM_COL32(255, 255, 255, static_cast<int>(alpha * 240)), label.c_str());
+            if (!badges.empty())
+                dl->AddText(font, small, ca + ImVec2(5 + ts.x, 2), pal::kWarning, badges.c_str());
+            dl->PopClipRect();
+        }
     }
-    if (c.reverse) label += "  <<";
-    if (c.freezeFrame) label += "  ||";
-    if (!c.enabled) label += std::string("  (") + tr("Disabled") + ")";
-    dl->PushClipRect(ImVec2(vx0, y0), ImVec2(std::max(vx0 + 1, vx1 - 2), y0 + barH), true);
-    dl->AddText(ImVec2(std::max(x0, areaMin_.x) + 4, y0 + (barH - ImGui::GetFontSize()) * 0.5f),
-                IM_COL32(255, 255, 255, static_cast<int>(alpha * 235)), label.c_str());
-    dl->PopClipRect();
 
-    if (selected) dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), col::kSelection, 3.0f, 2.0f);
-    else dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(0, 0, 0, 120), 3.0f);
-    if (dropHighlight_ == c.id) dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), col::kSnap, 3.0f, 2.5f);
+    // Outline: selection is a white border with trim handles; hover lightens.
+    if (selected) {
+        dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(255, 255, 255, 255), r, 2.0f);
+        if (x1 - x0 > 16) {
+            const float hy0 = y0 + h * 0.3f, hy1 = y1 - h * 0.3f;
+            dl->AddRectFilled(ImVec2(x0 + 2, hy0), ImVec2(x0 + 5, hy1), IM_COL32(255, 255, 255, 230), 1.5f);
+            dl->AddRectFilled(ImVec2(x1 - 5, hy0), ImVec2(x1 - 2, hy1), IM_COL32(255, 255, 255, 230), 1.5f);
+        }
+    } else {
+        dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), hovered ? IM_COL32(255, 255, 255, 90) : scaleColor(base, 0.95f, 0.55f * alpha), r, 1.0f);
+    }
+    if (dropHighlight_ == c.id) dl->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), col::kSnap, r, 2.5f);
 }
 
 // ------------------------------------------------------------------ input

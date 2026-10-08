@@ -10,6 +10,7 @@
 #include "render/compositor.h"
 #include "ui/edit_helpers.h"
 #include "ui/panels.h"
+#include "ui/style.h"
 #include "ui/widgets.h"
 
 namespace avc::ui {
@@ -157,141 +158,231 @@ void ViewerPanel::drawOverlays(App& app, ImDrawList* dl, ImVec2 imgMin, ImVec2 i
 void ViewerPanel::drawTransport(App& app) {
     const Sequence* seq = app.sequence();
     if (!seq) return;
+    const float fs = ImGui::GetFontSize();
     const float s = ImGui::GetFrameHeight();
+    const float playD = s * 1.35f;  // the round play button
+    const float rowH = playD;
+    const ImVec2 row = ImGui::GetCursorScreenPos();
+    const float width = ImGui::GetContentRegionAvail().x;
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    // Left: current time (editable) and duration.
+    ImGui::SetCursorScreenPos(ImVec2(row.x, row.y + (rowH - s) * 0.5f));
     Time t = app.playhead();
-    if (timeField("##tc", t, seq->frameRate, ImGui::GetFontSize() * 7.5f)) app.seek(t);
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushFont(boldFont() ? boldFont() : ImGui::GetFont(), ImGui::GetStyle().FontSizeBase * 1.05f);
+    if (timeField("##tc", t, seq->frameRate, fs * 7.2f)) app.seek(t);
+    ImGui::PopFont();
+    ImGui::PopStyleColor();
     tooltip(tr("Current time (type a timecode, frames or seconds)"));
-    ImGui::SameLine(0, 8);
-    const float buttons = s * 7 + 6 * 2;
-    const float avail = ImGui::GetContentRegionAvail().x;
-    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + std::max(0.0f, (avail - buttons) * 0.5f - s * 4));
-    if (iconButton("##start", Icon::ToStart, tr("Go to Start (Home)"), false, s)) app.goToStart();
     ImGui::SameLine(0, 2);
-    if (iconButton("##prev", Icon::StepBack, tr("Previous Frame (Left)"), false, s)) app.stepFrames(-1);
-    ImGui::SameLine(0, 2);
-    if (iconButton("##rev", Icon::KeyPrev, tr("Play Backward (J)"), app.playing() && app.playSpeed() < 0, s)) app.shuttle(-1);
-    ImGui::SameLine(0, 2);
-    if (iconButton("##play", app.playing() ? Icon::Pause : Icon::Play, tr("Play/Pause (Space)"), false, s)) app.togglePlay();
-    ImGui::SameLine(0, 2);
-    if (iconButton("##ff", Icon::KeyNext, tr("Play Forward (L)"), app.playing() && app.playSpeed() > 1.01, s)) app.shuttle(1);
-    ImGui::SameLine(0, 2);
-    if (iconButton("##next", Icon::StepForward, tr("Next Frame (Right)"), false, s)) app.stepFrames(1);
-    ImGui::SameLine(0, 2);
-    if (iconButton("##end", Icon::ToEnd, tr("Go to End (End)"), false, s)) app.goToEnd();
-    ImGui::SameLine(0, 2);
-    if (iconButton("##loop", Icon::Loop, tr("Loop Playback"), app.loopPlayback, s)) app.setLoop(!app.loopPlayback);
-    if (app.playing() && std::fabs(app.playSpeed() - 1.0) > 0.01) {
-        ImGui::SameLine(0, 6);
-        ImGui::TextColored(ImVec4(1, 0.8f, 0.3f, 1), "%+.0fx", app.playSpeed());
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextColored(pal::v4(pal::kTextFaint), "/ %s", formatTime(seq->duration(), seq->frameRate).c_str());
+
+    // Centre: transport with a large round play/pause button.
+    const float small = s * 0.95f;
+    const float groupW = small * 2 + 4 + playD + 8 + 4 + small * 2 + 10 + small;
+    const float cx = row.x + std::max(width * 0.5f - groupW * 0.5f, ImGui::GetItemRectMax().x - row.x + 12);
+    float x = cx;
+    auto btn = [&](const char* id, Icon icon, const char* tip, bool active = false) {
+        ImGui::SetCursorScreenPos(ImVec2(x, row.y + (rowH - small) * 0.5f));
+        const bool r = iconButton(id, icon, tip, active, small);
+        x += small + 2;
+        return r;
+    };
+    if (btn("##start", Icon::ToStart, tr("Go to Start (Home)"))) app.goToStart();
+    if (btn("##prev", Icon::StepBack, tr("Previous Frame (Left)"))) app.stepFrames(-1);
+    x += 4;
+    ImGui::SetCursorScreenPos(ImVec2(x, row.y));
+    const bool playing = app.playing();
+    if (ImGui::InvisibleButton("##play", ImVec2(playD, playD))) app.togglePlay();
+    const bool hov = ImGui::IsItemHovered();
+    tooltip(tr("Play/Pause (Space)"));
+    const ImVec2 pc(x + playD * 0.5f, row.y + playD * 0.5f);
+    dl->AddCircleFilled(pc, playD * 0.5f, hov ? pal::kAccentHover : pal::kAccent, 32);
+    drawIcon(dl, playing ? Icon::Pause : Icon::Play, pc + ImVec2(playing ? 0.0f : playD * 0.04f, 0), playD * 0.5f, IM_COL32(255, 255, 255, 255));
+    x += playD + 6;
+    if (btn("##next", Icon::StepForward, tr("Next Frame (Right)"))) app.stepFrames(1);
+    if (btn("##end", Icon::ToEnd, tr("Go to End (End)"))) app.goToEnd();
+    x += 8;
+    if (btn("##loop", Icon::Loop, tr("Loop Playback"), app.loopPlayback)) app.setLoop(!app.loopPlayback);
+    if (playing && std::fabs(app.playSpeed() - 1.0) > 0.01) {
+        char sp[16];
+        std::snprintf(sp, sizeof sp, "%+.0fx", app.playSpeed());
+        dl->AddText(ImVec2(x + 4, row.y + (rowH - fs) * 0.5f), pal::kWarning, sp);
     }
-    ImGui::SameLine(0, 12);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 4.5f);
-    if (ImGui::BeginCombo("##quality", tr(qualityLabel(app.previewQuality)))) {
-        for (PreviewQuality q : {PreviewQuality::Auto, PreviewQuality::Full, PreviewQuality::Half, PreviewQuality::Quarter,
-                                 PreviewQuality::Eighth})
-            if (ImGui::Selectable(tr(qualityLabel(q)), q == app.previewQuality)) {
-                app.previewQuality = q;
-                app.settings().playback.previewQuality = previewQualityName(q);
+
+    // Right: quality, zoom, more options and full screen.
+    const float comboQ = fs * 4.6f, comboZ = fs * 5.4f;
+    const float rightW = comboQ + 4 + comboZ + 6 + small + 2 + small;
+    float rx = row.x + width - rightW;
+    if (rx > x + fs * 3) {
+        const float cy = row.y + (rowH - s) * 0.5f;
+        ImGui::SetCursorScreenPos(ImVec2(rx, cy));
+        ImGui::SetNextItemWidth(comboQ);
+        if (ImGui::BeginCombo("##quality", tr(qualityLabel(app.previewQuality)))) {
+            for (PreviewQuality q : {PreviewQuality::Auto, PreviewQuality::Full, PreviewQuality::Half, PreviewQuality::Quarter,
+                                     PreviewQuality::Eighth})
+                if (ImGui::Selectable(tr(qualityLabel(q)), q == app.previewQuality)) {
+                    app.previewQuality = q;
+                    app.settings().playback.previewQuality = previewQualityName(q);
+                }
+            ImGui::EndCombo();
+        }
+        tooltip(tr("Preview quality (Auto lowers resolution during playback when needed)"));
+        rx += comboQ + 4;
+        ImGui::SetCursorScreenPos(ImVec2(rx, cy));
+        ImGui::SetNextItemWidth(comboZ);
+        const char* zooms[] = {tr("Fit"), "25%", "50%", "75%", "100%", "150%", "200%", "400%"};
+        const int zv[] = {0, 25, 50, 75, 100, 150, 200, 400};
+        int zi = 0;
+        for (int i = 0; i < 8; ++i)
+            if (zv[i] == zoom_) zi = i;
+        if (ImGui::Combo("##zoom", &zi, zooms, 8)) zoom_ = zv[zi];
+        tooltip(tr("Zoom"));
+        rx += comboZ + 6;
+        ImGui::SetCursorScreenPos(ImVec2(rx, row.y + (rowH - small) * 0.5f));
+        if (iconButton("##more", Icon::More, tr("View options"), false, small)) ImGui::OpenPopup("##viewopts");
+        rx += small + 2;
+        ImGui::SetCursorScreenPos(ImVec2(rx, row.y + (rowH - small) * 0.5f));
+        if (iconButton("##full", Icon::Fullscreen, tr("Full Screen Viewer (Ctrl+F)"), false, small)) app.ui().fullscreenViewer = true;
+        if (ImGui::BeginPopup("##viewopts")) {
+            bool proxies = app.settings().proxy.useProxies;
+            if (ImGui::MenuItem(tr("Use Proxies"), nullptr, &proxies)) {
+                app.settings().proxy.useProxies = proxies;
+                app.preview().frames().setUseProxies(proxies);
+                app.preview().frames().closeAllDecoders();
+                app.preview().invalidate();
             }
-        ImGui::EndCombo();
+            ImGui::MenuItem(tr("Safe area guides"), nullptr, &safeAreas_);
+            ImGui::MenuItem(tr("Show render statistics"), nullptr, &showStats_);
+            ImGui::EndPopup();
+        }
     }
-    tooltip(tr("Preview quality (Auto lowers resolution during playback when needed)"));
-    ImGui::SameLine(0, 4);
-    ImGui::SetNextItemWidth(ImGui::GetFontSize() * 5.5f);
-    const char* zooms[] = {tr("Fit"), "25%", "50%", "75%", "100%", "150%", "200%", "400%"};
-    const int zv[] = {0, 25, 50, 75, 100, 150, 200, 400};
-    int zi = 0;
-    for (int i = 0; i < 8; ++i)
-        if (zv[i] == zoom_) zi = i;
-    if (ImGui::Combo("##zoom", &zi, zooms, 8)) zoom_ = zv[zi];
-    ImGui::SameLine(0, 4);
-    bool proxies = app.settings().proxy.useProxies;
-    if (textToggle("P", &proxies, tr("Use proxies for playback"), IM_COL32(200, 140, 40, 255))) {
-        app.settings().proxy.useProxies = proxies;
-        app.preview().frames().setUseProxies(proxies);
-        app.preview().frames().closeAllDecoders();
-        app.preview().invalidate();
-    }
-    ImGui::SameLine(0, 2);
-    textToggle(tr("Safe"), &safeAreas_, tr("Safe area guides"));
-    ImGui::SameLine(0, 2);
-    textToggle("i", &showStats_, tr("Show render statistics"));
-    ImGui::SameLine(0, 8);
-    ImGui::TextDisabled("/ %s", formatTime(seq->duration(), seq->frameRate).c_str());
+    ImGui::SetCursorScreenPos(row);
+    ImGui::Dummy(ImVec2(width, rowH));
 }
 
 void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
     ImGui::BeginChild("##welcome", size, ImGuiChildFlags_None);
     const float fs = ImGui::GetFontSize();
-    const float colW = std::min(size.x - 32.0f, fs * 44.0f);
+    const float colW = std::min(size.x - 32.0f, fs * 46.0f);
     const float x0 = std::max(16.0f, (size.x - colW) * 0.5f);
-    ImGui::SetCursorPos(ImVec2(x0, std::max(12.0f, size.y * 0.08f)));
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+    ImGui::SetCursorPos(ImVec2(x0, std::max(14.0f, size.y * 0.07f)));
     ImGui::BeginGroup();
-    ImGui::PushFont(nullptr, ImGui::GetStyle().FontSizeBase * 1.7f);
+    // Hero
+    ImGui::PushFont(bold, ImGui::GetStyle().FontSizeBase * 1.85f);
     ImGui::TextUnformatted(tr("Welcome to AviCap Studio"));
     ImGui::PopFont();
-    hintText(tr("Let's start editing. Everything stays on this PC."));
-    ImGui::Spacing();
-    ImGui::Spacing();
-    const float bw = (colW - 16.0f) / 3.0f, bh = ImGui::GetFrameHeight() * 2.4f;
-    auto big = [&](const char* id, Icon icon, const char* label, const char* hint) {
+    ImGui::PushStyleColor(ImGuiCol_Text, pal::kTextMuted);
+    ImGui::TextWrapped("%s", tr("Let's start editing. Everything stays on this PC."));
+    ImGui::PopStyleColor();
+    ImGui::Dummy(ImVec2(0, fs * 0.6f));
+
+    // Action cards
+    const float gap = 10.0f;
+    const float ir = fs * 1.15f;
+    const float bw = (colW - gap * 2) / 3.0f, bh = 16 + ir * 2 + 12 + fs * 1.1f + 6 + fs + 16;
+    auto card = [&](const char* id, Icon icon, const char* label, const char* hint, bool primary) {
         const ImVec2 p = ImGui::GetCursorScreenPos();
-        const bool pressed = ImGui::Button(id, ImVec2(bw, bh));
-        ImDrawList* dl = ImGui::GetWindowDrawList();
-        drawIcon(dl, icon, p + ImVec2(bh * 0.45f, bh * 0.5f), bh * 0.42f, ImGui::GetColorU32(ImGuiCol_Text));
-        dl->AddText(p + ImVec2(bh * 0.85f, bh * 0.5f - fs * 1.1f), ImGui::GetColorU32(ImGuiCol_Text), label);
-        dl->PushClipRect(p, p + ImVec2(bw - 4, bh), true);
-        dl->AddText(p + ImVec2(bh * 0.85f, bh * 0.5f + fs * 0.1f), ImGui::GetColorU32(ImGuiCol_TextDisabled), hint);
+        const bool pressed = ImGui::InvisibleButton(id, ImVec2(bw, bh));
+        const bool hov = ImGui::IsItemHovered();
+        if (primary) {
+            dl->AddRectFilled(p, p + ImVec2(bw, bh), pal::kAccentPressed, 12.0f);
+            dl->AddRectFilledMultiColor(p + ImVec2(6, 0), p + ImVec2(bw - 6, bh), hov ? pal::kAccentHover : pal::kAccent, IM_COL32(86, 120, 255, 255),
+                                        IM_COL32(70, 96, 240, 255), pal::kAccentPressed);
+            dl->AddRectFilled(p, p + ImVec2(bw, bh), IM_COL32(255, 255, 255, hov ? 18 : 0), 12.0f);
+        } else {
+            dl->AddRectFilled(p, p + ImVec2(bw, bh), hov ? pal::kPanelHover : pal::kPanelRaised, 12.0f);
+            dl->AddRect(p, p + ImVec2(bw, bh), pal::kStroke, 12.0f);
+        }
+        const ImVec2 ic = p + ImVec2(16 + ir, 16 + ir);
+        dl->AddCircleFilled(ic, ir, primary ? IM_COL32(255, 255, 255, 46) : pal::kAccentSoft, 28);
+        drawIcon(dl, icon, ic, ir * 1.05f, primary ? IM_COL32(255, 255, 255, 255) : pal::kAccentText);
+        const float ty = 16 + ir * 2 + 12;
+        dl->PushClipRect(p, p + ImVec2(bw - 6, bh), true);
+        dl->AddText(bold, fs * 1.05f, p + ImVec2(16, ty), primary ? IM_COL32(255, 255, 255, 255) : pal::kText, label);
+        dl->AddText(p + ImVec2(16, ty + fs * 1.1f + 6), primary ? IM_COL32(255, 255, 255, 190) : pal::kTextMuted, hint);
         dl->PopClipRect();
         return pressed;
     };
-    if (big("##w_import", Icon::Plus, tr("Import Media"), "Ctrl+I")) app.importDialog();
-    ImGui::SameLine(0, 8);
-    if (big("##w_new", Icon::Film, tr("New Project"), "Ctrl+N")) app.commands().run("file.new");
-    ImGui::SameLine(0, 8);
-    if (big("##w_open", Icon::Folder, tr("Open Project"), "Ctrl+O")) app.openProjectDialog();
-    ImGui::Spacing();
-    ImGui::Spacing();
-    ImGui::SeparatorText(tr("How to edit"));
-    const char* steps[] = {
-        "1. Import video, music and images (or drag files into the window).",
-        "2. Drag clips from the Media panel to the timeline (double-click adds at the playhead).",
-        "3. Cut with Ctrl+K, add text (Ctrl+T), subtitles, BGM and sound effects from the toolbar.",
-        "4. Add effects and color from the Effects / Color panels; press Space to preview.",
-        "5. Export with Ctrl+M (presets for YouTube, TikTok, Shorts...).",
+    if (card("##w_import", Icon::Plus, tr("Import Media"), tr("Ctrl+I or drag files here"), true)) app.importDialog();
+    ImGui::SameLine(0, gap);
+    if (card("##w_new", Icon::Film, tr("New Project"), "Ctrl+N", false)) app.commands().run("file.new");
+    ImGui::SameLine(0, gap);
+    if (card("##w_open", Icon::Folder, tr("Open Project"), "Ctrl+O", false)) app.openProjectDialog();
+    ImGui::Dummy(ImVec2(0, fs * 0.8f));
+
+    // Editing flow as five steps with icons (details in tooltips).
+    headingText(tr("How to edit"));
+    ImGui::Dummy(ImVec2(0, 2));
+    struct Step {
+        Icon icon;
+        const char* label;
+        const char* detail;
     };
-    if (ImGui::BeginTable("##steps", 2, ImGuiTableFlags_None, ImVec2(colW, 0))) {
-        ImGui::TableSetupColumn("n", ImGuiTableColumnFlags_WidthFixed, fs * 1.6f);
-        ImGui::TableSetupColumn("t", ImGuiTableColumnFlags_WidthStretch);
-        int n = 1;
-        for (const char* st : steps) {
-            std::string text = tr(st);
-            // Drop the leading "N. " (the number gets its own column).
-            const size_t dot = text.find('.');
-            if (dot != std::string::npos && dot < 3) text = text.substr(std::min(text.size(), text.find_first_not_of(' ', dot + 1)));
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::TextColored(ImVec4(0.45f, 0.65f, 1.0f, 1.0f), "%d", n++);
-            ImGui::TableNextColumn();
-            ImGui::TextWrapped("%s", text.c_str());
+    const Step steps[] = {
+        {Icon::Plus, trNoop("Import"), "1. Import video, music and images (or drag files into the window)."},
+        {Icon::Film, trNoop("Arrange"), "2. Drag clips from the Media panel to the timeline (double-click adds at the playhead)."},
+        {Icon::Razor, trNoop("Cut & Text"), "3. Cut with Ctrl+K, add text (Ctrl+T), subtitles, BGM and sound effects from the toolbar."},
+        {Icon::Palette, trNoop("Look"), "4. Add effects and color from the Effects / Color panels; press Space to preview."},
+        {Icon::Export, trNoop("Export"), "5. Export with Ctrl+M (presets for YouTube, TikTok, Shorts...)."},
+    };
+    const float arrow = fs * 1.1f;
+    const float sw = (colW - arrow * 4) / 5.0f, sh = fs * 3.6f;
+    for (int i = 0; i < 5; ++i) {
+        if (i > 0) {
+            ImGui::SameLine(0, 0);
+            const ImVec2 ap = ImGui::GetCursorScreenPos();
+            drawIcon(dl, Icon::KeyNext, ap + ImVec2(arrow * 0.5f, sh * 0.5f), fs * 0.7f, pal::kTextFaint);
+            ImGui::Dummy(ImVec2(arrow, sh));
+            ImGui::SameLine(0, 0);
         }
-        ImGui::EndTable();
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        ImGui::PushID(i);
+        ImGui::InvisibleButton("##step", ImVec2(sw, sh));
+        ImGui::PopID();
+        const bool hov = ImGui::IsItemHovered();
+        tooltip(tr(steps[i].detail));
+        dl->AddRectFilled(p, p + ImVec2(sw, sh), hov ? pal::kPanelHover : pal::kPanelRaised, 10.0f);
+        char num[4];
+        std::snprintf(num, sizeof num, "%d", i + 1);
+        dl->AddCircleFilled(p + ImVec2(fs * 0.95f, fs * 0.95f), fs * 0.55f, pal::kAccentSoft, 20);
+        dl->AddText(bold, fs * 0.75f, p + ImVec2(fs * 0.95f - fs * 0.2f, fs * 0.95f - fs * 0.4f), pal::kAccentText, num);
+        drawIcon(dl, steps[i].icon, p + ImVec2(sw * 0.5f, sh * 0.42f), fs * 1.1f, pal::kText);
+        const char* lbl = tr(steps[i].label);
+        const ImVec2 ts = ImGui::CalcTextSize(lbl);
+        dl->AddText(p + ImVec2((sw - ts.x) * 0.5f, sh - fs * 1.35f), pal::kTextMuted, lbl);
     }
+
+    // Recent projects
     const auto& recent = app.settings().general.recentProjects;
     if (!recent.empty()) {
-        ImGui::Spacing();
-        ImGui::SeparatorText(tr("Recent Projects"));
+        ImGui::Dummy(ImVec2(0, fs * 0.6f));
+        headingText(tr("Recent Projects"));
+        ImGui::Dummy(ImVec2(0, 2));
         int shown = 0;
         for (const auto& r : recent) {
-            if (++shown > 6) break;
-            const std::string name = pathToUtf8(pathFromUtf8(r).filename());
+            if (++shown > 5) break;
+            const std::string name = pathToUtf8(pathFromUtf8(r).stem());
             ImGui::PushID(r.c_str());
-            if (ImGui::Selectable(name.c_str())) {
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            const float rh = fs * 2.6f;
+            if (ImGui::InvisibleButton("##recent", ImVec2(colW, rh))) {
                 const std::string path = r;
                 app.guardUnsaved([&app, path] { app.openProject(path); });
             }
-            tooltip(r.c_str());
+            const bool hov = ImGui::IsItemHovered();
+            dl->AddRectFilled(p, p + ImVec2(colW, rh), hov ? pal::kPanelHover : pal::kPanelRaised, 8.0f);
+            drawIcon(dl, Icon::Film, p + ImVec2(fs * 1.3f, rh * 0.5f), fs * 1.0f, pal::kAccentText);
+            dl->AddText(bold, fs, p + ImVec2(fs * 2.6f, rh * 0.5f - fs * 1.05f), pal::kText, name.c_str());
+            dl->PushClipRect(p, p + ImVec2(colW - 8, rh), true);
+            dl->AddText(ImGui::GetFont(), fs * 0.85f, p + ImVec2(fs * 2.6f, rh * 0.5f + fs * 0.05f), pal::kTextFaint, r.c_str());
+            dl->PopClipRect();
             ImGui::PopID();
+            ImGui::Dummy(ImVec2(0, 1));
         }
     }
     ImGui::EndGroup();
@@ -304,7 +395,7 @@ void ViewerPanel::draw(App& app) {
         drawWelcome(app, ImGui::GetContentRegionAvail());
         return;
     }
-    const float transportH = ImGui::GetFrameHeightWithSpacing() + 6;
+    const float transportH = ImGui::GetFrameHeight() * 1.35f + ImGui::GetStyle().ItemSpacing.y + 8;
     ImVec2 avail = ImGui::GetContentRegionAvail();
     avail.y = std::max(20.0f, avail.y - transportH);
     drawImage(app, avail, false);

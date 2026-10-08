@@ -8,6 +8,7 @@
 #include "core/platform.h"
 #include "core/strings.h"
 #include "ui/panels.h"
+#include "ui/style.h"
 #include "ui/widgets.h"
 
 namespace avc::ui {
@@ -48,25 +49,39 @@ std::string mediaSummary(const MediaItem& m) {
 
 void MediaPanel::draw(App& app) {
     const float fh = ImGui::GetFrameHeight();
-    if (iconButton("##import", Icon::Plus, tr("Import Media... (Ctrl+I)"), false, fh)) app.importDialog();
-    ImGui::SameLine(0, 2);
+    // Row 1: import + search
+    if (primaryButton(tr("+ Import"), ImVec2(0, fh))) app.importDialog();
+    tooltip(tr("Import Media... (Ctrl+I)"));
+    ImGui::SameLine(0, 4);
     if (iconButton("##importdir", Icon::Folder, tr("Import Folder..."), false, fh)) app.importFolderDialog();
     ImGui::SameLine(0, 8);
     ImGui::SetNextItemWidth(std::max(80.0f, ImGui::GetContentRegionAvail().x));
     ImGui::InputTextWithHint("##search", tr("Search media"), search_, sizeof search_);
-    // Second row: filter, sort, view mode.
+    // Row 2: type chips, sort and view mode on the right.
     const char* filters[] = {tr("All"), tr("Video"), tr("Audio"), tr("Images")};
-    const float comboW = std::max(fh * 4.0f, (ImGui::GetContentRegionAvail().x - fh - 12) * 0.5f);
-    ImGui::SetNextItemWidth(comboW);
-    ImGui::Combo("##filter", &filter_, filters, 4);
-    tooltip(tr("Type"));
-    ImGui::SameLine(0, 4);
-    const char* sorts[] = {tr("Name"), tr("Date Imported"), tr("Duration"), tr("Type")};
-    ImGui::SetNextItemWidth(comboW);
-    ImGui::Combo("##sort", &sort_, sorts, 4);
-    tooltip(tr("Sort"));
-    ImGui::SameLine(0, 4);
-    if (iconButton("##view", grid_ ? Icon::Image : Icon::Text, grid_ ? tr("List view") : tr("Grid view"), false, fh)) grid_ = !grid_;
+    const float rightW = fh;
+    const float rowRight = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x;
+    for (int i = 0; i < 4; ++i) {
+        if (i) {
+            const float w = ImGui::CalcTextSize(filters[i]).x + ImGui::GetStyle().FramePadding.x * 1.8f;
+            if (ImGui::GetItemRectMax().x + 6 + w < rowRight - rightW - 8) ImGui::SameLine(0, 6);
+        }
+        if (chipButton(filters[i], filter_ == i)) filter_ = i;
+    }
+    ImGui::SameLine();
+    ImGui::SetCursorScreenPos(ImVec2(rowRight - rightW, ImGui::GetCursorScreenPos().y - 3));
+    if (iconButton("##viewopts", Icon::More, tr("Sort and view"), false, fh)) ImGui::OpenPopup("##mediaopts");
+    if (ImGui::BeginPopup("##mediaopts")) {
+        ImGui::TextDisabled("%s", tr("Sort"));
+        const char* sorts[] = {tr("Name"), tr("Date Imported"), tr("Duration"), tr("Type")};
+        for (int i = 0; i < 4; ++i)
+            if (ImGui::MenuItem(sorts[i], nullptr, sort_ == i)) sort_ = i;
+        ImGui::Separator();
+        if (ImGui::MenuItem(tr("Grid view"), nullptr, grid_)) grid_ = true;
+        if (ImGui::MenuItem(tr("List view"), nullptr, !grid_)) grid_ = false;
+        ImGui::EndPopup();
+    }
+    ImGui::Spacing();
 
     const size_t offline = app.offlineCount();
     if (offline > 0) {
@@ -147,82 +162,108 @@ void MediaPanel::draw(App& app) {
 
     ImDrawList* dl = ImGui::GetWindowDrawList();
     if (grid_) {
-        const float tileW = fh * 6.0f * thumbSize_;
-        const float thumbH = tileW * 9.0f / 16.0f;
-        const float tileH = thumbH + ImGui::GetTextLineHeightWithSpacing() * 2.0f + 6;
-        const int cols = std::max(1, static_cast<int>((ImGui::GetContentRegionAvail().x + 6) / (tileW + 6)));
+        // Responsive grid: at least two columns, tiles fill the width.
+        const float gap = 8.0f;
+        const float avail = ImGui::GetContentRegionAvail().x;
+        const float minW = fh * 4.6f * thumbSize_;
+        const int cols = std::max(avail > minW * 2 ? 2 : 1, static_cast<int>((avail + gap) / (minW + gap)));
+        const float tileW = (avail - gap * static_cast<float>(cols - 1)) / static_cast<float>(cols);
+        const float thumbH = std::round(tileW * 9.0f / 16.0f);
+        const float lineH = ImGui::GetTextLineHeight();
+        const float tileH = thumbH + lineH + 8;
+        const float fs = ImGui::GetFontSize();
         ImGuiListClipper clipper;
         const int rows = (static_cast<int>(items.size()) + cols - 1) / cols;
-        clipper.Begin(rows, tileH + 6);
+        clipper.Begin(rows, tileH + gap);
         while (clipper.Step()) {
             for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
                 for (int c = 0; c < cols; ++c) {
                     const size_t idx = static_cast<size_t>(row * cols + c);
                     if (idx >= items.size()) break;
                     const MediaItem& m = *items[idx];
-                    if (c > 0) ImGui::SameLine(0, 6);
+                    if (c > 0) ImGui::SameLine(0, gap);
                     ImGui::PushID(static_cast<int>(m.id));
                     const ImVec2 p = ImGui::GetCursorScreenPos();
                     ImGui::InvisibleButton("##tile", ImVec2(tileW, tileH));
+                    const bool hov = ImGui::IsItemHovered();
                     handleItem(m);
                     const bool sel = app.selection.media.count(m.id) != 0;
                     const bool off = app.mediaOffline(m.id);
-                    dl->AddRectFilled(p, p + ImVec2(tileW, tileH), sel ? IM_COL32(60, 90, 140, 255) : IM_COL32(40, 41, 46, 255), 4.0f);
-                    const ImVec2 t0 = p + ImVec2(3, 3), t1 = p + ImVec2(tileW - 3, 3 + thumbH);
-                    dl->AddRectFilled(t0, t1, IM_COL32(15, 15, 17, 255), 3.0f);
+                    const float rr = 8.0f;
+                    const ImVec2 t0 = p, t1 = p + ImVec2(tileW, thumbH);
+                    const bool audioOnly = m.info.kind == MediaKind::Audio;
+                    if (audioOnly) dl->AddRectFilledMultiColor(t0, t1, IM_COL32(16, 70, 56, 255), IM_COL32(20, 60, 80, 255), IM_COL32(10, 32, 30, 255),
+                                                               IM_COL32(12, 28, 40, 255));
+                    else dl->AddRectFilled(t0, t1, IM_COL32(8, 9, 12, 255), rr);
                     bool drewThumb = false;
                     if (!off && m.info.hasVideo()) {
                         const Time at = m.info.kind == MediaKind::Image ? Time{0} : Time{m.info.duration.ticks / 3};
                         const ThumbnailRef th = app.assets().thumbnail(m, at, 160);
                         if (th && th.texture != ImTextureID_Invalid && th.height > 0) {
-                            // Letterbox inside the tile.
+                            // Cover fit: crop the thumbnail to the tile's 16:9 box.
                             const float ar = static_cast<float>(th.width) / static_cast<float>(th.height);
-                            float w = t1.x - t0.x, h = w / ar;
-                            if (h > t1.y - t0.y) {
-                                h = t1.y - t0.y;
-                                w = h * ar;
+                            const float boxAr = tileW / thumbH;
+                            ImVec2 uv0(0, 0), uv1(1, 1);
+                            if (ar > boxAr) {
+                                const float k = boxAr / ar;
+                                uv0.x = (1 - k) * 0.5f;
+                                uv1.x = 1 - uv0.x;
+                            } else {
+                                const float k = ar / boxAr;
+                                uv0.y = (1 - k) * 0.5f;
+                                uv1.y = 1 - uv0.y;
                             }
-                            const ImVec2 o = t0 + ImVec2((t1.x - t0.x - w) * 0.5f, (t1.y - t0.y - h) * 0.5f);
-                            dl->AddImage(ImTextureRef(th.texture), o, o + ImVec2(w, h));
+                            dl->AddImageRounded(ImTextureRef(th.texture), t0, t1, uv0, uv1, IM_COL32(255, 255, 255, 255), rr);
                             drewThumb = true;
                         }
                     }
                     if (!drewThumb) {
-                        drawIcon(dl, mediaIcon(m), (t0 + t1) * 0.5f, thumbH * 0.45f, IM_COL32(150, 150, 160, 255));
-                        if (m.info.kind == MediaKind::Audio) {
+                        if (audioOnly) {
                             if (auto peaks = app.assets().waveform(m)) {
-                                const int cols2 = static_cast<int>(t1.x - t0.x);
-                                const auto mm = peaks->query(0, peaks->durationSeconds(), cols2);
-                                const float mid = (t0.y + t1.y) * 0.5f, half = (t1.y - t0.y) * 0.45f;
-                                for (int i = 0; i < static_cast<int>(mm.size()); ++i)
-                                    dl->AddLine(ImVec2(t0.x + static_cast<float>(i), mid - mm[static_cast<size_t>(i)].second * half),
-                                                ImVec2(t0.x + static_cast<float>(i), mid - mm[static_cast<size_t>(i)].first * half + 1),
-                                                IM_COL32(80, 190, 120, 255));
+                                const int cols2 = static_cast<int>((t1.x - t0.x - 12) / 2);
+                                const auto mm = peaks->query(0, peaks->durationSeconds(), std::max(1, cols2));
+                                const float mid = (t0.y + t1.y) * 0.5f, half = (t1.y - t0.y) * 0.36f;
+                                for (int i = 0; i < static_cast<int>(mm.size()); ++i) {
+                                    const float x = t0.x + 6 + static_cast<float>(i) * 2.0f;
+                                    dl->AddRectFilled(ImVec2(x, mid - mm[static_cast<size_t>(i)].second * half),
+                                                      ImVec2(x + 1.4f, mid - mm[static_cast<size_t>(i)].first * half + 1), IM_COL32(72, 220, 160, 230));
+                                }
+                            } else {
+                                drawIcon(dl, Icon::Music, (t0 + t1) * 0.5f, thumbH * 0.4f, IM_COL32(120, 220, 180, 200));
                             }
+                        } else {
+                            drawIcon(dl, mediaIcon(m), (t0 + t1) * 0.5f, thumbH * 0.4f, pal::kTextFaint);
                         }
                     }
                     if (off) {
-                        dl->AddRectFilled(t0, t1, IM_COL32(120, 20, 20, 140), 3.0f);
-                        dl->AddText(t0 + ImVec2(4, 4), IM_COL32(255, 220, 220, 255), tr("Offline"));
+                        dl->AddRectFilled(t0, t1, IM_COL32(120, 20, 20, 150), rr);
+                        dl->AddText(t0 + ImVec2(6, 6), IM_COL32(255, 220, 220, 255), tr("Offline"));
                     }
-                    // Duration badge
+                    // Duration pill (bottom right)
                     if (m.info.kind != MediaKind::Image) {
                         const std::string d = formatDuration(m.info.duration);
-                        const ImVec2 ts = ImGui::CalcTextSize(d.c_str());
-                        dl->AddRectFilled(ImVec2(t1.x - ts.x - 6, t1.y - ts.y - 2), t1, IM_COL32(0, 0, 0, 170), 3.0f);
-                        dl->AddText(ImVec2(t1.x - ts.x - 3, t1.y - ts.y - 1), IM_COL32(230, 230, 230, 255), d.c_str());
+                        const float small = fs * 0.78f;
+                        const ImVec2 ts = ImGui::GetFont()->CalcTextSizeA(small, FLT_MAX, 0.0f, d.c_str());
+                        const ImVec2 b1 = t1 - ImVec2(5, 5), b0 = b1 - ts - ImVec2(10, 4);
+                        dl->AddRectFilled(b0, b1, IM_COL32(0, 0, 0, 170), (b1.y - b0.y) * 0.5f);
+                        dl->AddText(ImGui::GetFont(), small, b0 + ImVec2(5, 2), IM_COL32(240, 240, 240, 255), d.c_str());
                     }
                     const auto ps = app.proxies().status(m.id);
                     if (ps.state == proxy::ProxyState::Running || ps.state == proxy::ProxyState::Queued) {
-                        dl->AddRectFilled(ImVec2(t0.x, t1.y - 3), ImVec2(t0.x + (t1.x - t0.x) * ps.progress, t1.y), IM_COL32(240, 180, 60, 255));
+                        dl->AddRectFilled(ImVec2(t0.x + 4, t1.y - 4), ImVec2(t0.x + 4 + (t1.x - t0.x - 8) * ps.progress, t1.y - 2), pal::kWarning, 1.0f);
                     } else if (ps.state == proxy::ProxyState::Ready) {
-                        dl->AddRectFilled(t0, t0 + ImVec2(16, 14), IM_COL32(200, 140, 40, 230), 2.0f);
-                        dl->AddText(t0 + ImVec2(4, 0), IM_COL32(0, 0, 0, 255), "P");
+                        const ImVec2 b0 = t0 + ImVec2(5, 5);
+                        dl->AddRectFilled(b0, b0 + ImVec2(fs * 1.1f, fs * 1.0f), pal::withAlpha(pal::kWarning, 0.9f), 4.0f);
+                        dl->AddText(ImGui::GetFont(), fs * 0.75f, b0 + ImVec2(fs * 0.3f, fs * 0.1f), IM_COL32(20, 20, 20, 255), "P");
                     }
-                    dl->PushClipRect(p, p + ImVec2(tileW, tileH), true);
-                    dl->AddText(ImVec2(p.x + 4, t1.y + 3), IM_COL32(230, 230, 235, 255), m.name.c_str());
-                    const char* kind = m.info.kind == MediaKind::Audio ? tr("Audio") : m.info.kind == MediaKind::Image ? tr("Image") : tr("Video");
-                    dl->AddText(ImVec2(p.x + 4, t1.y + 3 + ImGui::GetTextLineHeight()), IM_COL32(140, 140, 150, 255), kind);
+                    // Selection / hover ring
+                    if (sel) dl->AddRect(t0 - ImVec2(1, 1), t1 + ImVec2(1, 1), pal::kAccentHover, rr + 1, 2.0f);
+                    else if (hov) dl->AddRect(t0, t1, IM_COL32(255, 255, 255, 70), rr, 1.0f);
+                    // Name (one line, with a small type icon)
+                    const float ny = t1.y + 4;
+                    drawIcon(dl, mediaIcon(m), ImVec2(p.x + fs * 0.45f, ny + lineH * 0.5f), fs * 0.62f, sel ? pal::kAccentText : pal::kTextFaint);
+                    dl->PushClipRect(ImVec2(p.x, ny), ImVec2(p.x + tileW, ny + lineH + 2), true);
+                    dl->AddText(ImVec2(p.x + fs * 1.0f, ny), sel ? pal::kText : pal::kTextMuted, m.name.c_str());
                     dl->PopClipRect();
                     ImGui::PopID();
                 }

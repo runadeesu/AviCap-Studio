@@ -38,7 +38,13 @@ struct TextPreset {
 void setColor(Clip& c, const char* k, float r, float g, float b, float a = 1.0f) { c.textParams.setStatic(k, pv(r, g, b, a)); }
 
 void drawCentered(ImDrawList* dl, ImFont* font, float size, ImVec2 a, ImVec2 b, ImU32 col, const char* text, ImVec2 offset = ImVec2(0, 0)) {
-    const ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+    // Shrink long words (e.g. Japanese labels) so they fit the card.
+    const float maxW = (b.x - a.x) - 16.0f;
+    ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+    if (ts.x > maxW && ts.x > 0) {
+        size *= maxW / ts.x;
+        ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+    }
     const ImVec2 p((a.x + b.x - ts.x) * 0.5f + offset.x, (a.y + b.y - ts.y) * 0.5f + offset.y);
     dl->AddText(font, size, p, col, text);
 }
@@ -158,7 +164,7 @@ const std::vector<TextPreset>& textPresets() {
 void LibraryPanel::draw(App& app) {
     UiState& ui = app.ui();
     const float fs = ImGui::GetFontSize();
-    const float railW = fs * 4.4f;
+    const float railW = fs * 4.8f;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 6));
     ImGui::BeginChild("##rail", ImVec2(railW, 0), ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar);
     for (const Page& p : kPages) {

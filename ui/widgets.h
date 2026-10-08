@@ -66,6 +66,10 @@ void headingText(const char* text, float scale = 1.0f);
 // Rounded "card" background behind the next items (call endCard() after).
 void beginCard(const char* id, ImVec2 size = ImVec2(0, 0), ImU32 bg = pal::kPanelRaised);
 void endCard();
+// Vertical fader (groove + accent fill + knob); `value` in [minV, maxV].
+bool vFader(const char* id, float* value, float minV, float maxV, ImVec2 size);
+// Thin horizontal slider with a round knob (pan, zoom). `centered` fills from the middle.
+bool slimSlider(const char* id, float* value, float minV, float maxV, float width, bool centered = false);
 // Small coloured dot (status indicators).
 void statusDot(ImU32 color);
 

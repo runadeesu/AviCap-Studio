@@ -501,9 +501,13 @@ bool railButton(const char* id, Icon icon, const char* label, bool active, float
     const ImU32 fg = active ? pal::kAccentText : hovered ? pal::kText : pal::kTextMuted;
     drawIcon(dl, icon, ImVec2(pos.x + width * 0.5f, pos.y + h * 0.36f), fs * 1.15f, fg);
     // Labels use a smaller size so long Japanese words fit.
-    const float small = fs * 0.78f;
+    float small = fs * 0.74f;
     ImFont* font = ImGui::GetFont();
-    const ImVec2 ts = font->CalcTextSizeA(small, width - 4, 0.0f, label);
+    ImVec2 ts = font->CalcTextSizeA(small, FLT_MAX, 0.0f, label);
+    if (ts.x > width - 6) {
+        small *= (width - 6) / ts.x;
+        ts = font->CalcTextSizeA(small, FLT_MAX, 0.0f, label);
+    }
     dl->AddText(font, small, ImVec2(pos.x + (width - ts.x) * 0.5f, pos.y + h * 0.66f), fg, label);
     if (hovered) tooltip(label);
     return pressed;
@@ -546,6 +550,69 @@ void endCard() {
     ImGui::EndChild();
     ImGui::PopStyleVar(2);
     ImGui::PopStyleColor();
+}
+
+bool vFader(const char* id, float* value, float minV, float maxV, ImVec2 size) {
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton(id, size);
+    const bool active = ImGui::IsItemActive();
+    const bool hovered = ImGui::IsItemHovered();
+    bool changed = false;
+    const float knobH = std::min(18.0f, size.y * 0.12f);
+    const float top = pos.y + knobH * 0.5f, bottom = pos.y + size.y - knobH * 0.5f;
+    if (active) {
+        const float t = std::clamp((bottom - ImGui::GetIO().MousePos.y) / std::max(1.0f, bottom - top), 0.0f, 1.0f);
+        const float v = minV + t * (maxV - minV);
+        if (v != *value) {
+            *value = v;
+            changed = true;
+        }
+    }
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float cx = pos.x + size.x * 0.5f;
+    const float t = std::clamp((*value - minV) / (maxV - minV), 0.0f, 1.0f);
+    const float ky = bottom - t * (bottom - top);
+    dl->AddRectFilled(ImVec2(cx - 2, top), ImVec2(cx + 2, bottom), pal::kPanelHover, 2.0f);
+    dl->AddRectFilled(ImVec2(cx - 2, ky), ImVec2(cx + 2, bottom), active || hovered ? pal::kAccentHover : pal::kAccent, 2.0f);
+    // Unity (0) tick when the range covers it.
+    if (minV < 0 && maxV > 0) {
+        const float uy = bottom - (-minV / (maxV - minV)) * (bottom - top);
+        dl->AddLine(ImVec2(pos.x + 2, uy), ImVec2(pos.x + size.x - 2, uy), pal::kStrokeStrong);
+    }
+    const float kw = size.x * 0.5f;
+    dl->AddRectFilled(ImVec2(cx - kw, ky - knobH * 0.5f), ImVec2(cx + kw, ky + knobH * 0.5f), active ? IM_COL32(255, 255, 255, 255) : IM_COL32(222, 224, 232, 255),
+                      4.0f);
+    dl->AddLine(ImVec2(cx - kw + 4, ky), ImVec2(cx + kw - 4, ky), IM_COL32(40, 40, 50, 200), 1.5f);
+    return changed;
+}
+
+bool slimSlider(const char* id, float* value, float minV, float maxV, float width, bool centered) {
+    const float h = ImGui::GetFrameHeight() * 0.7f;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImGui::InvisibleButton(id, ImVec2(width, h));
+    const bool active = ImGui::IsItemActive();
+    const bool hovered = ImGui::IsItemHovered();
+    const float r = 6.0f;
+    const float x0 = pos.x + r, x1 = pos.x + width - r;
+    bool changed = false;
+    if (active) {
+        const float t = std::clamp((ImGui::GetIO().MousePos.x - x0) / std::max(1.0f, x1 - x0), 0.0f, 1.0f);
+        const float v = minV + t * (maxV - minV);
+        if (v != *value) {
+            *value = v;
+            changed = true;
+        }
+    }
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float cy = pos.y + h * 0.5f;
+    const float t = std::clamp((*value - minV) / (maxV - minV), 0.0f, 1.0f);
+    const float kx = x0 + t * (x1 - x0);
+    dl->AddRectFilled(ImVec2(x0, cy - 2), ImVec2(x1, cy + 2), pal::kPanelHover, 2.0f);
+    const float from = centered ? (x0 + x1) * 0.5f : x0;
+    dl->AddRectFilled(ImVec2(std::min(from, kx), cy - 2), ImVec2(std::max(from, kx), cy + 2), pal::kAccent, 2.0f);
+    if (centered) dl->AddLine(ImVec2((x0 + x1) * 0.5f, cy - 5), ImVec2((x0 + x1) * 0.5f, cy + 5), pal::kStrokeStrong);
+    dl->AddCircleFilled(ImVec2(kx, cy), active || hovered ? r + 1 : r, IM_COL32(240, 241, 247, 255), 20);
+    return changed;
 }
 
 void statusDot(ImU32 color) {
@@ -647,32 +714,37 @@ void levelMeter(const char* id, const audio::Meter& m, ImVec2 size, bool vertica
     const ImVec2 pos = ImGui::GetCursorScreenPos();
     ImGui::Dummy(size);
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(pos, pos + size, IM_COL32(18, 18, 20, 255));
     auto norm = [](float lin) { return std::clamp((linearToDb(lin) + 60.0f) / 66.0f, 0.0f, 1.0f); };
+    // Zones: green up to -18 dB, amber to -6 dB, red above.
+    const float zAmber = (60.0f - 18.0f) / 66.0f, zRed = (60.0f - 6.0f) / 66.0f;
+    const ImU32 green = IM_COL32(52, 211, 120, 255), amber = IM_COL32(250, 190, 50, 255), red = IM_COL32(255, 86, 92, 255);
     for (int ch = 0; ch < 2; ++ch) {
         const float pk = norm(m.peak[ch]), rms = norm(m.rms[ch]);
         if (vertical) {
-            const float w = (size.x - 3) * 0.5f;
-            const float x0 = pos.x + 1 + static_cast<float>(ch) * (w + 1);
+            const float w = std::max(2.0f, (size.x - 2) * 0.5f);
+            const float x0 = pos.x + static_cast<float>(ch) * (w + 2);
             auto y = [&](float n) { return pos.y + size.y - n * size.y; };
-            dl->AddRectFilledMultiColor(ImVec2(x0, y(rms)), ImVec2(x0 + w, pos.y + size.y), IM_COL32(60, 200, 90, 255),
-                                        IM_COL32(60, 200, 90, 255), IM_COL32(40, 140, 70, 255), IM_COL32(40, 140, 70, 255));
+            dl->AddRectFilled(ImVec2(x0, pos.y), ImVec2(x0 + w, pos.y + size.y), IM_COL32(8, 9, 12, 255), 2.0f);
+            auto seg = [&](float a, float b, ImU32 c) {
+                const float top = std::min(rms, b);
+                if (top > a) dl->AddRectFilled(ImVec2(x0, y(top)), ImVec2(x0 + w, y(a)), c, 1.5f);
+            };
+            seg(0.0f, zAmber, green);
+            seg(zAmber, zRed, amber);
+            seg(zRed, 1.0f, red);
             const float yp = y(pk);
-            const ImU32 pc = pk > norm(0.89f) ? IM_COL32(240, 70, 50, 255) : pk > norm(0.5f) ? IM_COL32(240, 200, 60, 255)
-                                                                                         : IM_COL32(120, 230, 140, 255);
-            dl->AddLine(ImVec2(x0, yp), ImVec2(x0 + w, yp), pc, 2.0f);
+            dl->AddLine(ImVec2(x0, yp), ImVec2(x0 + w, yp), pk > zRed ? red : pk > zAmber ? amber : IM_COL32(170, 240, 190, 255), 2.0f);
         } else {
-            const float hgt = (size.y - 3) * 0.5f;
-            const float y0 = pos.y + 1 + static_cast<float>(ch) * (hgt + 1);
-            dl->AddRectFilled(ImVec2(pos.x, y0), ImVec2(pos.x + rms * size.x, y0 + hgt), IM_COL32(60, 200, 90, 255));
+            const float hgt = (size.y - 2) * 0.5f;
+            const float y0 = pos.y + static_cast<float>(ch) * (hgt + 2);
+            dl->AddRectFilled(ImVec2(pos.x, y0), ImVec2(pos.x + size.x, y0 + hgt), IM_COL32(8, 9, 12, 255), 2.0f);
+            dl->AddRectFilled(ImVec2(pos.x, y0), ImVec2(pos.x + rms * size.x, y0 + hgt), rms > zRed ? red : rms > zAmber ? amber : green, 2.0f);
             const float xp = pos.x + pk * size.x;
-            dl->AddLine(ImVec2(xp, y0), ImVec2(xp, y0 + hgt), IM_COL32(240, 220, 120, 255), 2.0f);
+            dl->AddLine(ImVec2(xp, y0), ImVec2(xp, y0 + hgt), IM_COL32(240, 240, 240, 220), 2.0f);
         }
     }
-    if (m.clipped) dl->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + 4), IM_COL32(240, 50, 40, 255));
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("L %.1f dB  R %.1f dB", linearToDb(m.peak[0]), linearToDb(m.peak[1]));
-    }
+    if (m.clipped) dl->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + 4), red, 2.0f);
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("L %.1f dB  R %.1f dB", linearToDb(m.peak[0]), linearToDb(m.peak[1]));
     (void)id;
 }
 

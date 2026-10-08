@@ -136,8 +136,12 @@ void SoundsPanel::drawLibrary(App& app) {
     }
     const char* filters[] = {tr("All"), "BGM", tr("SFX"), tr("Favourites"), tr("Recent")};
     for (int i = 0; i < 5; ++i) {
-        if (i) ImGui::SameLine();
-        if (ImGui::RadioButton(filters[i], filter_ == i)) filter_ = i;
+        if (i) {
+            const float w = ImGui::CalcTextSize(filters[i]).x + ImGui::GetStyle().FramePadding.x * 1.8f;
+            if (ImGui::GetItemRectMax().x + 6 + w < ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x)
+                ImGui::SameLine(0, 6);
+        }
+        if (chipButton(filters[i], filter_ == i)) filter_ = i;
     }
     if (lib.scanning()) {
         ImGui::SameLine();

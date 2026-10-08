@@ -66,6 +66,8 @@ private:
     SettingsWindow settings_;
 
     bool layoutBuilt_ = false;
+    std::vector<std::string> focusAfterLayout_;
+    int focusFrames_ = 0;
     // New project dialog
     char newName_[128] = {};
     int newPreset_ = 0;

@@ -6,6 +6,7 @@
 
 #include "core/i18n.h"
 #include "ui/panels.h"
+#include "ui/style.h"
 #include "ui/widgets.h"
 
 namespace avc::ui {
@@ -15,41 +16,87 @@ void MixerPanel::draw(App& app) {
     if (!seq) return;
     const auto meters = app.playback().trackMeters();
     const float fs = ImGui::GetFontSize();
-    const float stripW = fs * 4.6f;
-    const float faderH = std::max(fs * 6.0f, ImGui::GetContentRegionAvail().y - fs * 6.5f);
+    const float stripW = fs * 4.4f;
+    const float frame = ImGui::GetFrameHeight();
+    // Everything in a strip except the fader: name, pan, dB readout, M/S, padding.
+    const float chrome = fs * 1.5f + frame * 0.7f + 2 + ImGui::GetTextLineHeightWithSpacing() + 2 + frame * 0.8f + 18;
+    const float faderH = std::max(fs * 4.0f, ImGui::GetContentRegionAvail().y - chrome - ImGui::GetStyle().ScrollbarSize - 4);
     ImGui::BeginChild("##strips", ImVec2(0, 0), ImGuiChildFlags_None, ImGuiWindowFlags_HorizontalScrollbar);
     auto strip = [&](const char* name, float& db, float* pan, const audio::Meter& meter, bool* mute, bool* solo,
                      const std::function<void(float, float, bool, bool, const char*)>& commit) {
-        ImGui::BeginGroup();
         ImGui::PushID(name);
-        ImGui::TextUnformatted(name);
-        if (pan) {
-            ImGui::SetNextItemWidth(stripW);
-            float p = *pan;
-            if (ImGui::SliderFloat("##pan", &p, -1.0f, 1.0f, p < -0.01f ? "L%.2f" : p > 0.01f ? "R%.2f" : "C")) commit(db, p, mute && *mute, solo && *solo, "pan");
-            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) commit(db, 0.0f, mute && *mute, solo && *solo, "pan");
+        const ImVec2 p0 = ImGui::GetCursorScreenPos();
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float pad = 6.0f;
+        const float cardH = faderH + chrome;
+        dl->AddRectFilled(p0, p0 + ImVec2(stripW, cardH), pal::kPanelRaised, 8.0f);
+        ImGui::BeginGroup();
+        // Name (centred, clipped)
+        {
+            ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+            const float size = fs * 0.85f;
+            const ImVec2 ts = bold->CalcTextSizeA(size, FLT_MAX, 0.0f, name);
+            dl->PushClipRect(p0, p0 + ImVec2(stripW - 2, fs * 1.6f), true);
+            dl->AddText(bold, size, ImVec2(p0.x + std::max(pad, (stripW - ts.x) * 0.5f), p0.y + pad), pal::kText, name);
+            dl->PopClipRect();
         }
+        ImGui::SetCursorScreenPos(p0 + ImVec2(pad, fs * 1.5f));
+        if (pan) {
+            float p = *pan;
+            if (slimSlider("##pan", &p, -1.0f, 1.0f, stripW - pad * 2, true)) commit(db, p, mute && *mute, solo && *solo, "pan");
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) commit(db, 0.0f, mute && *mute, solo && *solo, "pan");
+            char pt[16];
+            if (p < -0.01f) std::snprintf(pt, sizeof pt, "L%.0f", -p * 100);
+            else if (p > 0.01f) std::snprintf(pt, sizeof pt, "R%.0f", p * 100);
+            else std::snprintf(pt, sizeof pt, "C");
+            tooltip((std::string(tr("Pan")) + ": " + pt + "  (" + tr("double-click: center") + ")").c_str());
+        } else {
+            ImGui::Dummy(ImVec2(stripW - pad * 2, ImGui::GetFrameHeight() * 0.7f));
+        }
+        // Fader + meter
+        ImGui::SetCursorScreenPos(ImVec2(p0.x + pad, ImGui::GetCursorScreenPos().y + 2));
         float d = db;
-        if (ImGui::VSliderFloat("##fader", ImVec2(stripW * 0.45f, faderH), &d, -60.0f, 12.0f, "%.1f")) commit(d, pan ? *pan : 0, mute && *mute, solo && *solo, "vol");
+        const float faderW = (stripW - pad * 2) * 0.55f;
+        if (vFader("##fader", &d, -60.0f, 12.0f, ImVec2(faderW, faderH))) commit(d, pan ? *pan : 0, mute && *mute, solo && *solo, "vol");
         if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) commit(0.0f, pan ? *pan : 0, mute && *mute, solo && *solo, "vol");
         tooltip(tr("Volume (double-click: 0 dB)"));
         ImGui::SameLine(0, 4);
-        levelMeter("##meter", meter, ImVec2(stripW * 0.4f, faderH));
+        levelMeter("##meter", meter, ImVec2(stripW - pad * 2 - faderW - 4, faderH));
+        // dB readout
+        char vol[24];
+        std::snprintf(vol, sizeof vol, "%+.1f dB", db);
+        {
+            const ImVec2 ts = ImGui::CalcTextSize(vol);
+            ImGui::SetCursorScreenPos(ImVec2(p0.x + (stripW - ts.x) * 0.5f, ImGui::GetCursorScreenPos().y + 2));
+            ImGui::TextColored(pal::v4(pal::kTextMuted), "%s", vol);
+        }
+        // Mute / solo pills
+        ImGui::SetCursorScreenPos(ImVec2(p0.x + pad, ImGui::GetCursorScreenPos().y));
+        const float pillW = (stripW - pad * 2 - 4) * 0.5f;
+        auto pill = [&](const char* id, const char* label, bool on, ImU32 onColor, const char* tip) {
+            const ImVec2 pp = ImGui::GetCursorScreenPos();
+            const float ph = ImGui::GetFrameHeight() * 0.8f;
+            const bool pressed = ImGui::InvisibleButton(id, ImVec2(pillW, ph));
+            const bool hov = ImGui::IsItemHovered();
+            dl->AddRectFilled(pp, pp + ImVec2(pillW, ph), on ? onColor : hov ? pal::kPanelActive : pal::kPanelHover, ph * 0.5f);
+            const ImVec2 ts = ImGui::CalcTextSize(label);
+            dl->AddText(pp + ImVec2((pillW - ts.x) * 0.5f, (ph - ts.y) * 0.5f), on ? IM_COL32(20, 20, 24, 255) : pal::kTextMuted, label);
+            tooltip(tip);
+            return pressed;
+        };
         if (mute) {
-            bool m = *mute;
-            if (textToggle("M", &m, tr("Mute"), IM_COL32(200, 70, 60, 255))) commit(db, pan ? *pan : 0, m, solo && *solo, "mute");
-            ImGui::SameLine(0, 2);
+            if (pill("##m", "M", *mute, pal::kDanger, tr("Mute"))) commit(db, pan ? *pan : 0, !*mute, solo && *solo, "mute");
+            ImGui::SameLine(0, 4);
         }
         if (solo) {
-            bool s = *solo;
-            if (textToggle("S", &s, tr("Solo"), IM_COL32(200, 160, 40, 255))) commit(db, pan ? *pan : 0, mute && *mute, s, "solo");
+            if (pill("##s", "S", *solo, pal::kWarning, tr("Solo"))) commit(db, pan ? *pan : 0, mute && *mute, !*solo, "solo");
         }
-        char peak[32];
-        std::snprintf(peak, sizeof peak, "%.1f", std::max(linearToDb(meter.peak[0]), linearToDb(meter.peak[1])));
-        ImGui::TextDisabled("%s", meter.peak[0] > 0 || meter.peak[1] > 0 ? peak : "-inf");
-        ImGui::PopID();
+        if (!mute && !solo) ImGui::Dummy(ImVec2(pillW, ImGui::GetFrameHeight() * 0.8f));
         ImGui::EndGroup();
-        ImGui::SameLine(0, fs);
+        ImGui::SetCursorScreenPos(p0);
+        ImGui::Dummy(ImVec2(stripW, cardH));
+        ImGui::PopID();
+        ImGui::SameLine(0, 6);
     };
     for (int i : seq->audioTrackIndices()) {
         const Track& t = *seq->tracks[static_cast<size_t>(i)];
@@ -69,18 +116,19 @@ void MixerPanel::draw(App& app) {
             }, EditOptions{std::string("mixer:") + std::to_string(id) + what});
         });
     }
-    ImGui::SeparatorText("");
     float master = seq->masterVolumeDb;
     const audio::Meter mm = app.playback().masterMeter();
+    char device[256];
+    std::snprintf(device, sizeof device, "%s: %s\n%s: %llu", tr("Output"), app.playback().output().deviceName().c_str(), tr("Underruns"),
+                  static_cast<unsigned long long>(app.playback().underruns()));
     strip(tr("Master"), master, nullptr, mm, nullptr, nullptr, [&app](float v, float, bool, bool, const char*) {
         app.editSequence("Master Volume", [&](SequenceEditor& e) {
             e.props().masterVolumeDb = v;
             return Status::ok();
         }, EditOptions{"mixer:master"});
     });
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", device);
     ImGui::NewLine();
-    ImGui::TextDisabled("%s: %s   %s: %llu", tr("Output"), app.playback().output().deviceName().c_str(), tr("Underruns"),
-                        static_cast<unsigned long long>(app.playback().underruns()));
     ImGui::EndChild();
 }
 
