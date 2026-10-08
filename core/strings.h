@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -36,6 +37,11 @@ std::u32string utf8ToUtf32(std::string_view s);
 std::string utf32ToUtf8(std::u32string_view s);
 // Number of code points.
 size_t utf8Length(std::string_view s);
+bool isValidUtf8(std::string_view s);
+// Text file bytes -> UTF-8: handles UTF-8 (with or without BOM), UTF-16
+// LE/BE with BOM and, for invalid UTF-8, Japanese Shift_JIS (CP932) which is
+// still common for subtitle files. Returns nullopt if nothing fits.
+std::optional<std::string> decodeTextFile(std::string_view bytes);
 // Sanitizes a string for use as a file name component.
 std::string sanitizeFileName(std::string_view name);
 

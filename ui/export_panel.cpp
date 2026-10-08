@@ -243,6 +243,13 @@ void ExportPanel::drawSettings(App& app) {
     ImGui::Combo("##range", &rangeMode_, ranges, seq->workArea ? 2 : 1);
     ImGui::SetCursorPosX(labelW);
     ImGui::Checkbox(tr("Verify the file after export"), &settings_.verify);
+    bool hasSubs = false;
+    for (const auto& t : seq->tracks) hasSubs |= t->kind == TrackKind::Subtitle && !t->clips.empty();
+    if (hasSubs) {
+        ImGui::SetCursorPosX(labelW);
+        ImGui::Checkbox(tr("Also save the subtitles as a .srt file"), &sidecarSrt_);
+        tooltip(tr("Subtitles are burned into the video and also written next to it, for YouTube or other players."));
+    }
 
     // Validation
     settings_.outputPath = path_;
@@ -278,6 +285,12 @@ void ExportPanel::drawSettings(App& app) {
         exp::ExportSettings s = settings_;
         if (rangeMode_ == 1 && seq->workArea) s.range = seq->workArea;
         app.queueExport(s);
+        if (hasSubs && sidecarSrt_) {
+            fs::path srt = pathFromUtf8(s.outputPath);
+            srt.replace_extension(".srt");
+            const std::optional<TimeRange> subRange = s.range ? s.range : (seq->workArea ? seq->workArea : std::nullopt);
+            if (Status st = app.exportSubtitles(pathToUtf8(srt), subRange); !st) app.notify(LogLevel::Warning, st.message());
+        }
         app.settings().exporting.defaultPreset = settings_.presetId == "custom" ? app.settings().exporting.defaultPreset : settings_.presetId;
         // Next export gets a fresh, unique name.
         initialized_ = false;

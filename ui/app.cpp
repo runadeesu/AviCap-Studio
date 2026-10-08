@@ -14,6 +14,7 @@
 #include "project/relink.h"
 #include "project/serialize.h"
 #include "text/text_raster.h"
+#include "timeline/subtitles.h"
 
 namespace avc::ui {
 
@@ -574,6 +575,50 @@ void App::addAudioDialog(bool music) {
     auto files = dialogs_->openFiles(music ? tr("Add Background Music") : tr("Add Sound Effect"),
                                      {{tr("Audio files"), patterns}, {tr("All files"), "*.*"}}, !music);
     addSoundFiles(std::move(files), music);
+}
+
+Result<int> App::importSubtitles(const std::string& path, Time offset) {
+    auto bytes = readFileBytes(pathFromUtf8(path));
+    if (!bytes) return Result<int>::error(std::string(tr("Could not read the file")) + ": " + path);
+    auto text = decodeTextFile(*bytes);
+    if (!text) return Result<int>::error(tr("Unknown text encoding (use UTF-8 or Shift_JIS)"));
+    auto cues = subs::parse(*text);
+    if (!cues) return Result<int>::error(tr("No subtitles found in the file"));
+    int added = 0;
+    subs::ImportStyle style;
+    style.trackName = tr("Subtitles");
+    const Status st = editSequence(trNoop("Import Subtitles"), [&](SequenceEditor& e) {
+        auto r = subs::addCues(e, *cues, offset, style);
+        if (!r) return r.status();
+        added = *r;
+        return Status::ok();
+    });
+    if (!st) return st;
+    notify(LogLevel::Info, std::string(tr("Subtitles imported")) + ": " + std::to_string(added), tr("Undo"), [this] { undo(); });
+    return added;
+}
+
+Status App::exportSubtitles(const std::string& path, std::optional<TimeRange> range) {
+    const Sequence* s = sequence();
+    if (!s) return Status::error("No sequence");
+    const auto cues = subs::cuesFromSequence(*s, range);
+    if (cues.empty()) return Status::error(tr("There are no subtitles to export"));
+    const auto fmt = subs::formatFromExtension(path).value_or(subs::Format::Srt);
+    return writeFileAtomic(pathFromUtf8(path), subs::serialize(cues, fmt));
+}
+
+void App::importSubtitlesDialog() {
+    auto files = dialogs_->openFiles(tr("Import Subtitles"), {{tr("Subtitle files"), "*.srt;*.vtt"}, {tr("All files"), "*.*"}}, false);
+    if (files.empty()) return;
+    if (auto r = importSubtitles(files[0]); !r) notify(LogLevel::Warning, r.errorMessage());
+}
+
+void App::exportSubtitlesDialog() {
+    const std::string base = sanitizeFileName(project().name);
+    auto path = dialogs_->saveFile(tr("Export Subtitles"), {{"SubRip (*.srt)", "*.srt"}, {"WebVTT (*.vtt)", "*.vtt"}}, base + ".srt", "srt");
+    if (!path) return;
+    if (Status st = exportSubtitles(*path); !st) notify(LogLevel::Warning, st.message());
+    else notify(LogLevel::Info, std::string(tr("Subtitles exported")) + ": " + pathToUtf8(pathFromUtf8(*path).filename()));
 }
 
 void App::addSoundFiles(std::vector<std::string> files, bool music, std::optional<Time> when) {

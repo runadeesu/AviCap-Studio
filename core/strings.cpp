@@ -6,6 +6,8 @@
 
 #if defined(_WIN32)
 #include <windows.h>
+#else
+#include <iconv.h>
 #endif
 
 namespace avc {
@@ -208,6 +210,98 @@ std::string sanitizeFileName(std::string_view name) {
     while (!r.empty() && (r.back() == '.' || r.back() == ' ')) r.pop_back();
     if (r.empty()) r = "untitled";
     return r;
+}
+
+
+bool isValidUtf8(std::string_view s) {
+    size_t i = 0;
+    while (i < s.size()) {
+        const auto c = static_cast<unsigned char>(s[i]);
+        size_t n = 0;
+        uint32_t cp = 0;
+        if (c < 0x80) {
+            ++i;
+            continue;
+        } else if ((c & 0xE0) == 0xC0) {
+            n = 1;
+            cp = c & 0x1F;
+        } else if ((c & 0xF0) == 0xE0) {
+            n = 2;
+            cp = c & 0x0F;
+        } else if ((c & 0xF8) == 0xF0) {
+            n = 3;
+            cp = c & 0x07;
+        } else {
+            return false;
+        }
+        for (size_t k = 1; k <= n; ++k) {
+            if (i + k >= s.size()) return false;
+            const auto cc = static_cast<unsigned char>(s[i + k]);
+            if ((cc & 0xC0) != 0x80) return false;
+            cp = (cp << 6) | (cc & 0x3F);
+        }
+        // Overlong forms, surrogates and out-of-range code points.
+        if ((n == 1 && cp < 0x80) || (n == 2 && cp < 0x800) || (n == 3 && cp < 0x10000) || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF))
+            return false;
+        i += n + 1;
+    }
+    return true;
+}
+
+namespace {
+
+std::optional<std::string> utf16ToUtf8(std::string_view bytes, bool bigEndian) {
+    std::u32string out;
+    for (size_t i = 0; i + 1 < bytes.size(); i += 2) {
+        const auto b0 = static_cast<unsigned char>(bytes[i]), b1 = static_cast<unsigned char>(bytes[i + 1]);
+        char32_t u = bigEndian ? (b0 << 8 | b1) : (b1 << 8 | b0);
+        if (u >= 0xD800 && u <= 0xDBFF && i + 3 < bytes.size()) {
+            const auto c0 = static_cast<unsigned char>(bytes[i + 2]), c1 = static_cast<unsigned char>(bytes[i + 3]);
+            const char32_t lo = bigEndian ? (c0 << 8 | c1) : (c1 << 8 | c0);
+            if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                u = 0x10000 + ((u - 0xD800) << 10) + (lo - 0xDC00);
+                i += 2;
+            }
+        }
+        out.push_back(u);
+    }
+    return utf32ToUtf8(out);
+}
+
+std::optional<std::string> cp932ToUtf8(std::string_view bytes) {
+#if defined(_WIN32)
+    const int n = MultiByteToWideChar(932, MB_ERR_INVALID_CHARS, bytes.data(), static_cast<int>(bytes.size()), nullptr, 0);
+    if (n <= 0) return std::nullopt;
+    std::wstring w(static_cast<size_t>(n), L'\0');
+    MultiByteToWideChar(932, MB_ERR_INVALID_CHARS, bytes.data(), static_cast<int>(bytes.size()), w.data(), n);
+    return wideToUtf8(w);
+#else
+    iconv_t cd = iconv_open("UTF-8", "CP932");
+    if (cd == reinterpret_cast<iconv_t>(-1)) return std::nullopt;
+    std::string in(bytes), out(bytes.size() * 3 + 16, '\0');
+    char* ip = in.data();
+    char* op = out.data();
+    size_t il = in.size(), ol = out.size();
+    const size_t r = iconv(cd, &ip, &il, &op, &ol);
+    iconv_close(cd);
+    if (r == static_cast<size_t>(-1)) return std::nullopt;
+    out.resize(out.size() - ol);
+    return out;
+#endif
+}
+
+}  // namespace
+
+std::optional<std::string> decodeTextFile(std::string_view bytes) {
+    if (bytes.size() >= 3 && static_cast<unsigned char>(bytes[0]) == 0xEF && static_cast<unsigned char>(bytes[1]) == 0xBB &&
+        static_cast<unsigned char>(bytes[2]) == 0xBF)
+        bytes.remove_prefix(3);
+    else if (bytes.size() >= 2 && static_cast<unsigned char>(bytes[0]) == 0xFF && static_cast<unsigned char>(bytes[1]) == 0xFE)
+        return utf16ToUtf8(bytes.substr(2), false);
+    else if (bytes.size() >= 2 && static_cast<unsigned char>(bytes[0]) == 0xFE && static_cast<unsigned char>(bytes[1]) == 0xFF)
+        return utf16ToUtf8(bytes.substr(2), true);
+    if (isValidUtf8(bytes)) return std::string(bytes);
+    return cp932ToUtf8(bytes);
 }
 
 }  // namespace avc

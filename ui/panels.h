@@ -204,6 +204,7 @@ private:
     std::string projectPathAtInit_;
     char path_[1024] = {};
     int rangeMode_ = 0;  // 0 whole/work area, 1 in-out only, 2 custom
+    bool sidecarSrt_ = true;
 };
 
 class MixerPanel {

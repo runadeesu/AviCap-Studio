@@ -987,3 +987,16 @@
 {"Using the key from the ANTHROPIC_API_KEY environment variable.", "環境変数 ANTHROPIC_API_KEY のキーを使用しています。"},
 {"Withdraw consent", "同意を取り消す"},
 {"Your instruction text", "入力した指示の文章"},
+
+// ---------------------------------------------------------------- subtitle files
+{"Also save the subtitles as a .srt file", "字幕を .srt ファイルとしても保存する"},
+{"Could not read the file", "ファイルを読み込めませんでした"},
+{"Export Subtitles", "字幕を書き出し"},
+{"Import Subtitles", "字幕を読み込み"},
+{"No subtitles found in the file", "ファイルに字幕が見つかりませんでした"},
+{"Subtitle files", "字幕ファイル"},
+{"Subtitles are burned into the video and also written next to it, for YouTube or other players.", "字幕は動画に焼き付けられ、YouTube などで使えるように動画の隣にもファイルとして保存されます。"},
+{"Subtitles exported", "字幕を書き出しました"},
+{"Subtitles imported", "字幕を読み込みました"},
+{"There are no subtitles to export", "書き出す字幕がありません"},
+{"Unknown text encoding (use UTF-8 or Shift_JIS)", "文字コードを判別できません（UTF-8 か Shift_JIS を使ってください）"},

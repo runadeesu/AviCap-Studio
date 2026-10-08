@@ -295,6 +295,8 @@ void MainWindow::menuBar() {
         menuItem("file.importFolder");
         menuItem("file.addMusic");
         menuItem("file.addSfx");
+        menuItem("file.importSubtitles");
+        menuItem("file.exportSubtitles");
         ImGui::Separator();
         menuItem("file.export");
         ImGui::Separator();
@@ -828,14 +830,25 @@ void MainWindow::onFilesDropped(const std::vector<std::string>& paths, ImVec2 sc
         app_.guardUnsaved([this, p] { app_.openProject(p); });
         return;
     }
+    // Subtitle files become subtitle clips (timed from the start of the sequence).
+    std::vector<std::string> media;
+    for (const auto& p : paths) {
+        const std::string ext = toLower(pathToUtf8(pathFromUtf8(p).extension()));
+        if (ext == ".srt" || ext == ".vtt") {
+            if (auto r = app_.importSubtitles(p); !r) app_.notify(LogLevel::Warning, r.errorMessage());
+        } else {
+            media.push_back(p);
+        }
+    }
+    if (media.empty()) return;
     auto target = timeline_.dropTargetAt(app_, screenPos);
     if (!target) {
-        app_.importFiles(paths);
+        app_.importFiles(media);
         return;
     }
     const auto t = *target;
     App* app = &app_;
-    app_.importFiles(paths, [app, t](const std::vector<MediaId>& ids) {
+    app_.importFiles(media, [app, t](const std::vector<MediaId>& ids) {
         Time at = t.time;
         for (MediaId id : ids) {
             auto r = app->addMediaToTimeline(id, at, t.videoTrack, t.audioTrack, false);

@@ -184,6 +184,11 @@ public:
     // Imports audio files and places them at the playhead on a free audio
     // track: music goes to A2 and below, sound effects to A3 and below.
     void addAudioDialog(bool music);
+    // Subtitle files (.srt / .vtt). Import adds subtitle clips at `offset`.
+    Result<int> importSubtitles(const std::string& path, Time offset = Time{0});
+    Status exportSubtitles(const std::string& path, std::optional<TimeRange> range = std::nullopt);
+    void importSubtitlesDialog();
+    void exportSubtitlesDialog();
     // Imports audio files and places them at `at` (default: playhead): music
     // on A2 and later (back to back), sound effects on A3 and later.
     void addSoundFiles(std::vector<std::string> files, bool music, std::optional<Time> at = std::nullopt);

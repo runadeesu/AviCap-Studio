@@ -7,5 +7,6 @@ avicap_add_module(timeline
         document.cpp
         snap.cpp
         evaluate.cpp
+        subtitles.cpp
     DEPS
         AviCap::core)

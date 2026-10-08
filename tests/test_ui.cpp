@@ -535,3 +535,34 @@ TEST_CASE("AI tools: cloud assistant needs consent and goes through preview/appl
     CHECK(app.doc().undoLabel() == "AI Edit");
     host.frames(2);
 }
+
+TEST_CASE("subtitle files through the app: Shift_JIS import, export, undo") {
+    auto dir = test::makeTempDir("ui_subs");
+    AppOptions opt;
+    opt.dataDir = dir / "data";
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app, ImVec2(1280, 800));
+    // A Shift_JIS SRT as produced by many Japanese tools.
+    const std::string sjis = std::string("1\r\n00:00:01,000 --> 00:00:02,500\r\n") + "\x82\xB1\x82\xF1\x82\xC9\x82\xBF\x82\xCD" +
+                             "\r\n\r\n2\r\n00:00:03,000 --> 00:00:04,000\r\nSecond\r\n";
+    const auto srtPath = dir / "in.srt";
+    REQUIRE(writeFileAtomic(srtPath, sjis));
+    auto r = app.importSubtitles(pathToUtf8(srtPath));
+    REQUIRE(r);
+    CHECK(*r == 2);
+    host.frames(2);
+    CHECK(app.doc().undoLabel() == "Import Subtitles");
+
+    const auto out = dir / "out.vtt";
+    REQUIRE(app.exportSubtitles(pathToUtf8(out)));
+    auto text = readFileBytes(out);
+    REQUIRE(text);
+    CHECK(text->find("WEBVTT") == 0);
+    CHECK(text->find("00:00:01.000 --> 00:00:02.500\nこんにちは") != std::string::npos);
+
+    app.undo();
+    CHECK_FALSE(app.exportSubtitles(pathToUtf8(dir / "empty.srt")));
+    CHECK_FALSE(app.importSubtitles(pathToUtf8(dir / "missing.srt")));
+}

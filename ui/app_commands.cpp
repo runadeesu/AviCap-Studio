@@ -37,6 +37,8 @@ void App::registerCommands() {
     add("file.importFolder", "Import Folder...", "File", {}, [this] { importFolderDialog(); });
     add("file.addMusic", "Add Background Music...", "File", {{"avicap", "Ctrl+Shift+M"}}, [this] { addAudioDialog(true); }, hasSeq);
     add("file.addSfx", "Add Sound Effect...", "File", {{"avicap", "Ctrl+Alt+E"}}, [this] { addAudioDialog(false); }, hasSeq);
+    add("file.importSubtitles", "Import Subtitles...", "File", {}, [this] { importSubtitlesDialog(); }, hasSeq);
+    add("file.exportSubtitles", "Export Subtitles...", "File", {}, [this] { exportSubtitlesDialog(); }, hasSeq);
     add("file.export", "Export...", "File", {{"avicap", "Ctrl+M"}, {"resolve", "Ctrl+Shift+E"}}, [this] { ui_.showExport = true; });
     add("file.exit", "Exit", "File", {{"avicap", "Alt+F4"}}, [this] { requestExit(); });
 
