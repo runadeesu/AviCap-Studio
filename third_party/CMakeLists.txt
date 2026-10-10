@@ -6,6 +6,9 @@ add_library(AviCap::json ALIAS avicap_json)
 
 add_library(avicap_doctest INTERFACE)
 target_include_directories(avicap_doctest SYSTEM INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/doctest")
+# Real <ostream> instead of doctest's forward declarations: MSVC needs the
+# complete type when stringifying std::shared_ptr in CHECK(a == b).
+target_compile_definitions(avicap_doctest INTERFACE DOCTEST_CONFIG_USE_STD_HEADERS)
 add_library(AviCap::doctest ALIAS avicap_doctest)
 
 add_library(avicap_stb STATIC stb_impl.cpp)
