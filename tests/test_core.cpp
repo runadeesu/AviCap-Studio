@@ -24,8 +24,8 @@ TEST_CASE("mulDiv rounding and overflow safety") {
     CHECK(mulDiv(-10, 3, 4, Rounding::Nearest) == -8);
     // Large intermediate: 3 hours in ticks * 60000
     const int64_t big = kTicksPerSecond * 3600 * 3;
-    CHECK(mulDiv(big, 60000, 1001 * kTicksPerSecond / kTicksPerSecond, Rounding::Down) ==
-          static_cast<int64_t>((static_cast<long double>(big) * 60000) / 1001));
+    // Exact value of floor(big * 60000 / 1001) (long double is only 64-bit on MSVC).
+    CHECK(mulDiv(big, 60000, 1001 * kTicksPerSecond / kTicksPerSecond, Rounding::Down) == 164437930069930069LL);
 }
 
 TEST_CASE("tick base is exact for common frame and sample rates") {

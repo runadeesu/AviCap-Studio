@@ -6,6 +6,7 @@
 
 #include <cmath>
 
+#include "core/log.h"
 #include "core/platform.h"
 #include "core/strings.h"
 #include "render/compositor.h"
@@ -25,6 +26,19 @@ std::vector<float> readFloat(Device& d, const Texture& t) {
     for (size_t i = 0; i < h.size(); ++i) f[i] = halfToFloat(h[i]);
     return f;
 }
+
+// Collects GPU errors (shader compile failures...) so a failing check shows why.
+struct GpuErrors {
+    int id = 0;
+    std::shared_ptr<std::string> text = std::make_shared<std::string>();
+    GpuErrors() {
+        auto t = text;
+        id = log::addListener([t](const LogRecord& r) {
+            if (r.level >= LogLevel::Warning && r.category == "gpu") *t += r.message + "\n";
+        });
+    }
+    ~GpuErrors() { log::removeListener(id); }
+};
 
 std::unique_ptr<Device> makeD3D() {
     std::string err;
@@ -56,6 +70,7 @@ TEST_CASE("d3d11 kernels match the CPU backend") {
     if (!d3d) return;
     auto cpu = createCpuDevice(2);
     MESSAGE("D3D11 adapter: ", d3d->info().adapter);
+    GpuErrors gpuErrors;
     const int w = 48, h = 32;
     auto pat = pattern(w, h);
     for (int k = 0; k < static_cast<int>(Kernel::Count); ++k) {
@@ -86,7 +101,9 @@ TEST_CASE("d3d11 kernels match the CPU backend") {
             if (e > 0.02) ++bad;
         }
         // Allow a handful of pixels on hard edges (sampling position rounding).
-        CHECK_MESSAGE(bad <= results[0].size() / 50, std::string(kernelSourceName(kernel)), " max error ", maxErr, " bad ", bad);
+        CHECK_MESSAGE(bad <= results[0].size() / 50, std::string(kernelSourceName(kernel)), " max error ", maxErr, " bad ", bad,
+                      " first pixel cpu ", results[0][0], ",", results[0][1], ",", results[0][2], ",", results[0][3], " d3d ", results[1][0],
+                      ",", results[1][1], ",", results[1][2], ",", results[1][3], " gpu log: ", *gpuErrors.text);
     }
 }
 
@@ -94,6 +111,7 @@ TEST_CASE("d3d11 compositor renders a timeline like the CPU backend") {
     auto d3d = makeD3D();
     if (!d3d) return;
     auto cpu = createCpuDevice(2);
+    GpuErrors gpuErrors;
     MediaFrameProvider frames;
     auto text = text::createTextRasterizer();
     Project p = makeProject("X", ProjectSettings{320, 180, {30, 1}, 48000});
@@ -117,7 +135,8 @@ TEST_CASE("d3d11 compositor renders a timeline like the CPU backend") {
     size_t bad = 0;
     for (size_t i = 0; i < a.size(); ++i)
         if (std::abs(static_cast<int>(a[i]) - static_cast<int>(b[i])) > 6) ++bad;
-    CHECK(bad < a.size() / 100);
+    CHECK_MESSAGE(bad < a.size() / 100, "first pixel cpu ", int(a[0]), ",", int(a[1]), ",", int(a[2]), ",", int(a[3]), " d3d ", int(b[0]), ",",
+                  int(b[1]), ",", int(b[2]), ",", int(b[3]), " gpu log: ", *gpuErrors.text);
 }
 
 #endif
