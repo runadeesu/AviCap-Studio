@@ -4,14 +4,14 @@
 **BLOCKED** = 外部要因で進められない / **NOT STARTED** = 未着手。
 
 「検証」欄は実際に確認した環境です。Windows の実機 GPU（NVIDIA/AMD/Intel）では確認していません。
-Windows 版の動作確認は Linux 上の Wine（ソフトウェア描画）で行っています。
+Windows 版の動作確認は GitHub Actions の Windows（MSVC、WARP 描画）と、Linux 上の Wine で行っています。
 
 ## 基盤
 
 | 機能 | 状態 | 検証・備考 |
 | --- | --- | --- |
 | CMake ビルド（Linux / MinGW クロス） | DONE | 毎回ビルド・テスト |
-| MSVC ビルド（GitHub Actions） | PARTIAL | アプリ本体はビルド可。テストコードの MSVC 固有エラーを修正中（doctest + `shared_ptr` の文字列化） |
+| MSVC ビルド（GitHub Actions） | DONE | ビルド・全テスト（Windows SDK 10.0.26100、WARP 上の D3D11 テストを含む）・インストーラー / zip 作成まで成功。ただし Windows の CI ではテスト用メディアを生成していないため、メディアを使うテストは Linux / Wine でのみ実行 |
 | 有理数タイムベース（Rational / Time） | DONE | 単体テスト |
 | ジョブシステム（優先度・キャンセル） | DONE | 単体テスト |
 | ログ・設定（JSON） | DONE | 単体テスト |
@@ -42,7 +42,7 @@ Windows 版の動作確認は Linux 上の Wine（ソフトウェア描画）で
 | --- | --- | --- |
 | FFmpeg デコード（D3D11VA ハードウェアデコード対応） | DONE | ソフトウェアデコードはテスト済み。D3D11VA は実機 GPU で未検証（使えない場合は自動でソフトウェア） |
 | フレームキャッシュ・先読み・品質自動調整 | DONE | 単体テスト |
-| Direct3D 11 レンダラー | DONE | Wine 上でテスト（実機 GPU 未検証） |
+| Direct3D 11 レンダラー | DONE | Windows の WARP（Microsoft Basic Render Driver）と Wine で CPU 版と画素一致をテスト。実機 GPU は未検証 |
 | CPU レンダラー（フォールバック・テスト用） | DONE | 単体テスト（D3D11 と同じカーネル） |
 | Direct3D 12 レンダラー | NOT STARTED | D3D11 / CPU で全機能が動作 |
 | スコープ（波形・RGB パレード・ベクトルスコープ・ヒストグラム） | DONE | |

@@ -9,6 +9,8 @@ ctest --test-dir build/linux --output-on-failure  # unit_tests と stress_tests
 ```
 
 Windows では `build_release.bat` がビルド後に同じテストを実行します（`--skip-tests` で省略）。
+GitHub Actions の Windows ジョブ（MSVC）は WARP 上で D3D11 のテストも実行します（テスト用メディアは
+生成しないため、メディアを使うテストはスキップされ、Linux ジョブで実行されます）。
 Linux から作った Windows 版は `tools/package_windows.sh --smoke-test` で Wine 上の自己テストを実行します。
 
 ## 範囲（139 テストケース）
