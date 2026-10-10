@@ -25,8 +25,8 @@ std::string mb(uint64_t b) {
 }  // namespace
 
 void DiagnosticsPanel::draw(App& app) {
-    if (!ImGui::BeginTabBar("##diag")) return;
-    if (ImGui::BeginTabItem(tr("Performance"))) {
+    if (!beginTabs("##diag")) return;
+    if (tabItem(tr("Performance"))) {
         const auto ps = app.preview().stats();
         const auto f = app.preview().latest();
         const auto fc = app.preview().frames().cache().stats();
@@ -62,9 +62,8 @@ void DiagnosticsPanel::draw(App& app) {
             ImGui::EndTable();
         }
         if (app.stats.lowMemory) ImGui::TextColored(ImVec4(1, 0.6f, 0.3f, 1), "%s", tr("Low memory mode is active."));
-        ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem(tr("System"))) {
+    if (tabItem(tr("System"))) {
         const auto& di = app.device().info();
         ImGui::Text("AviCap Studio %s (%s, %s)", AVICAP_VERSION_STRING, AVICAP_BUILD_DATE, AVICAP_COMPILER);
         ImGui::Text("%s: %s", tr("OS"), osDescription().c_str());
@@ -74,10 +73,10 @@ void DiagnosticsPanel::draw(App& app) {
         if (di.software) ImGui::TextColored(ImVec4(1, 0.7f, 0.3f, 1), "%s", tr("Software rendering is active (slow)."));
         ImGui::SeparatorText(tr("Hardware decoding"));
         static std::string hw = hardwareDecodeSummary();
-        ImGui::TextWrapped("%s", hw.c_str());
+        wrappedText(hw.c_str());
         ImGui::SeparatorText(tr("Encoders"));
         static std::string encs = enc::EncoderCatalog::instance().summary();
-        ImGui::TextWrapped("%s", encs.c_str());
+        wrappedText(encs.c_str());
         ImGui::SeparatorText(tr("Folders"));
         ImGui::Text("%s: %s", tr("Data"), pathToUtf8(app.dataDir()).c_str());
         ImGui::Text("%s: %s", tr("Logs"), pathToUtf8(logsDir()).c_str());
@@ -85,9 +84,8 @@ void DiagnosticsPanel::draw(App& app) {
         if (ImGui::Button(tr("Open Logs Folder"))) openWithShell(pathToUtf8(logsDir()));
         ImGui::SameLine();
         if (ImGui::Button(tr("Open Data Folder"))) openWithShell(pathToUtf8(app.dataDir()));
-        ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem(tr("Jobs"))) {
+    if (tabItem(tr("Jobs"))) {
         auto jobs = Jobs::allActiveJobs();
         if (jobs.empty()) ImGui::TextDisabled("%s", tr("No background jobs."));
         for (const auto& j : jobs) {
@@ -99,9 +97,8 @@ void DiagnosticsPanel::draw(App& app) {
             if (ImGui::SmallButton(tr("Cancel"))) j->token.cancel();
             ImGui::PopID();
         }
-        ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem(tr("Log"))) {
+    if (tabItem(tr("Log"))) {
         const char* levels[] = {"Trace", "Debug", "Info", "Warning", "Error", "Fatal"};
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 6);
         ImGui::Combo("##lvl", &minLevel_, levels, 6);
@@ -128,9 +125,8 @@ void DiagnosticsPanel::draw(App& app) {
         if (copy) ImGui::SetClipboardText(copied.c_str());
         if (autoScroll_ && ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 20) ImGui::SetScrollHereY(1.0f);
         ImGui::EndChild();
-        ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem(tr("Cache"))) {
+    if (tabItem(tr("Cache"))) {
         static std::vector<cache::CategoryUsage> usage;
         static double lastScan = -100;
         if (app.timeSec() - lastScan > 5.0) {
@@ -157,9 +153,8 @@ void DiagnosticsPanel::draw(App& app) {
             app.notify(LogLevel::Info, std::string(tr("Cache cleanup freed")) + " " + mb(freed));
             lastScan = -100;
         }
-        ImGui::EndTabItem();
     }
-    ImGui::EndTabBar();
+    endTabs();
 }
 
 }  // namespace avc::ui

@@ -203,7 +203,7 @@ void SettingsWindow::draw(App& app) {
             pathField(app, tr("Cache folder (restart required)"), working_.cache.location, true);
         }
         if (tab("AI & Privacy")) {
-            ImGui::TextWrapped("%s", tr("AviCap Studio works locally. Nothing is uploaded unless you explicitly enable a cloud feature below."));
+            wrappedText(tr("AviCap Studio works locally. Nothing is uploaded unless you explicitly enable a cloud feature below."));
             checkbox(tr("Allow network access (sound search, cloud AI)"), &working_.privacy.allowNetwork);
             checkbox(tr("Allow sending transcripts to the cloud AI assistant"), &working_.ai.cloudConsent);
             helpMarker(tr("Only the text you type and timeline metadata/transcripts are sent - never video or audio files."));

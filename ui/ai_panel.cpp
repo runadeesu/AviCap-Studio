@@ -130,7 +130,7 @@ void AiPanel::drawPlan(App& app) {
 
     if (!st.error.empty()) {
         ImGui::PushStyleColor(ImGuiCol_Text, kErrorColor);
-        ImGui::TextWrapped("%s", st.error.c_str());
+        wrappedText(st.error.c_str());
         ImGui::PopStyleColor();
     }
     if (st.plan.steps.empty() && st.plan.notes.empty()) return;
@@ -147,12 +147,12 @@ void AiPanel::drawPlan(App& app) {
             changed = true;
         }
         ImGui::SameLine();
-        ImGui::TextWrapped("%s", st.plan.steps[i].description.c_str());
+        wrappedText(st.plan.steps[i].description.c_str());
         ImGui::PopID();
     }
     for (const auto& n : st.plan.notes) {
         ImGui::PushStyleColor(ImGuiCol_Text, kNoteColor);
-        ImGui::TextWrapped("%s", n.c_str());
+        wrappedText(n.c_str());
         ImGui::PopStyleColor();
     }
     if (changed && st.previewing) ai.discardPlan();
@@ -178,7 +178,7 @@ void AiPanel::drawPlan(App& app) {
         ImGui::Text("%s: %zu -> %zu", tr("Clips"), r.clipsBefore, r.clipsAfter);
         for (const auto& line : r.log) {
             ImGui::PushStyleColor(ImGuiCol_Text, kOkColor);
-            ImGui::TextWrapped("- %s", line.c_str());
+            wrappedText(("- " + line).c_str());
             ImGui::PopStyleColor();
         }
     }
@@ -210,15 +210,15 @@ void AiPanel::drawProvider(App& app) {
     ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.16f, 0.17f, 0.22f, 1.0f));
     ImGui::BeginChild("##cloud", ImVec2(0, 0), ImGuiChildFlags_AutoResizeY | ImGuiChildFlags_Borders);
     if (!ai.transportAvailable) {
-        ImGui::TextWrapped("%s", tr("The cloud assistant is only available in the Windows version."));
+        wrappedText(tr("The cloud assistant is only available in the Windows version."));
     } else if (!set.ai.cloudConsent) {
-        ImGui::TextWrapped("%s", tr("Before using Claude, please check what is sent:"));
+        wrappedText(tr("Before using Claude, please check what is sent:"));
         ImGui::BulletText("%s", tr("Your instruction text"));
         ImGui::BulletText("%s", tr("A text description of the timeline: track names, clip file names and times, title/subtitle text, markers"));
         ImGui::PushStyleColor(ImGuiCol_Text, kOkColor);
         ImGui::BulletText("%s", tr("Never sent: video, audio, images, file paths"));
         ImGui::PopStyleColor();
-        ImGui::TextWrapped("%s", tr("Data is sent to api.anthropic.com over HTTPS using your own API key and is handled under Anthropic's terms. Usage is billed to your Anthropic account."));
+        wrappedText(tr("Data is sent to api.anthropic.com over HTTPS using your own API key and is handled under Anthropic's terms. Usage is billed to your Anthropic account."));
         if (ImGui::Button(tr("I agree - enable Claude"))) {
             set.ai.cloudConsent = true;
             set.privacy.allowNetwork = true;
@@ -230,13 +230,13 @@ void AiPanel::drawProvider(App& app) {
             app.saveSettings();
         }
     } else if (!set.privacy.allowNetwork) {
-        ImGui::TextWrapped("%s", tr("Network access is turned off in Settings > AI & Privacy."));
+        wrappedText(tr("Network access is turned off in Settings > AI & Privacy."));
         if (ImGui::Button(tr("Allow network access"))) {
             set.privacy.allowNetwork = true;
             app.saveSettings();
         }
     } else if (ai.apiKey().empty()) {
-        ImGui::TextWrapped("%s", tr("Enter your Anthropic API key (from the Claude Console)."));
+        wrappedText(tr("Enter your Anthropic API key (from the Claude Console)."));
         ImGui::SetNextItemWidth(-1);
         ImGui::InputTextWithHint("##apikey", "sk-ant-...", keyBuf_, sizeof keyBuf_, ImGuiInputTextFlags_Password);
         checkbox(tr("Remember on this PC (encrypted for your Windows account)"), &rememberKey_);

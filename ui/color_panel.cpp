@@ -176,14 +176,14 @@ void ColorPanel::draw(App& app) {
     const Clip* clip = app.primaryClip();
     const Track* track = clip && seq ? seq->trackOfClip(clip->id) : nullptr;
     if (!clip || !track || !isVisualTrack(track->kind)) {
-        ImGui::TextWrapped("%s", tr("Select a video clip (or an adjustment layer) to grade it."));
+        wrappedText(tr("Select a video clip (or an adjustment layer) to grade it."));
         return;
     }
     ImGui::TextDisabled("%s", clip->name.c_str());
     const Time local = clipLocalTime(*clip, app.playhead());
-    if (ImGui::BeginTabBar("##colortabs")) {
+    if (beginTabs("##colortabs")) {
         // ------------------------------------------------ basic
-        if (ImGui::BeginTabItem(tr("Basic"))) {
+        if (tabItem(tr("Basic"))) {
             const EffectInstance* e = findEffect(*clip, "color.basic");
             if (!e) {
                 if (ImGui::Button(tr("Add Color Correction"))) addEffect(app, clip->id, "color.basic");
@@ -194,10 +194,9 @@ void ColorPanel::draw(App& app) {
                     applyParamEdit(app, ParamRef{clip->id, ParamTarget::Effect, e->id, d.id}, d, ed, local);
                 }
             }
-            ImGui::EndTabItem();
         }
         // ------------------------------------------------ wheels
-        if (ImGui::BeginTabItem(tr("Wheels"))) {
+        if (tabItem(tr("Wheels"))) {
             const EffectInstance* e = findEffect(*clip, "color.wheels");
             if (!e) {
                 if (ImGui::Button(tr("Add Color Wheels"))) addEffect(app, clip->id, "color.wheels");
@@ -237,10 +236,9 @@ void ColorPanel::draw(App& app) {
                     ImGui::TreePop();
                 }
             }
-            ImGui::EndTabItem();
         }
         // ------------------------------------------------ curves
-        if (ImGui::BeginTabItem(tr("Curves"))) {
+        if (tabItem(tr("Curves"))) {
             const EffectInstance* e = findEffect(*clip, "color.curves");
             if (!e) {
                 if (ImGui::Button(tr("Add Curves"))) addEffect(app, clip->id, "color.curves");
@@ -285,16 +283,15 @@ void ColorPanel::draw(App& app) {
                     applyParamEdit(app, ParamRef{clip->id, ParamTarget::Effect, e->id, d.id}, d, ed, local);
                 }
             }
-            ImGui::EndTabItem();
         }
         // ------------------------------------------------ LUT
-        if (ImGui::BeginTabItem("LUT")) {
+        if (tabItem("LUT")) {
             const EffectInstance* e = findEffect(*clip, "color.lut");
             if (!e) {
                 if (ImGui::Button(tr("Add LUT"))) addEffect(app, clip->id, "color.lut");
             } else {
                 auto it = e->properties.find("file");
-                ImGui::TextWrapped("%s", it == e->properties.end() || it->second.empty() ? tr("No LUT file") : it->second.c_str());
+                wrappedText(it == e->properties.end() || it->second.empty() ? tr("No LUT file") : it->second.c_str());
                 if (ImGui::Button(tr("Load .cube LUT..."))) {
                     auto files = app.dialogs().openFiles(tr("Load LUT"), {{"3D LUT (.cube)", "*.cube"}}, false);
                     if (!files.empty()) {
@@ -319,9 +316,8 @@ void ColorPanel::draw(App& app) {
                     applyParamEdit(app, ParamRef{clip->id, ParamTarget::Effect, e->id, d.id}, d, ed, local);
                 }
             }
-            ImGui::EndTabItem();
         }
-        ImGui::EndTabBar();
+        endTabs();
     }
 }
 

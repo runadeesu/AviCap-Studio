@@ -5,6 +5,8 @@
 
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include <imgui.h>
 
@@ -69,6 +71,12 @@ bool checkbox(const char* label, bool* v);
 bool toggleSwitch(const char* id, bool* v, const char* tooltip = nullptr);
 // Text tabs with an accent underline (inspector pages).
 bool underlineTabs(const char* id, const char* const* labels, int count, int* current);
+// The same tabs with the ImGui BeginTabBar/BeginTabItem calling pattern:
+//   if (beginTabs("##id")) { if (tabItem("A")) {...} if (tabItem("B")) {...} endTabs(); }
+// The bar is laid out at the top and drawn in endTabs(), once all labels are known.
+bool beginTabs(const char* id);
+bool tabItem(const char* label);
+void endTabs();
 // Icon-over-label tab (library page bar); the active one is accent coloured.
 bool iconTab(const char* id, Icon icon, const char* label, bool active, ImVec2 size);
 // Frame shapes offered in the viewer and the project settings.
@@ -115,6 +123,12 @@ void helpMarker(const char* text);
 // Dimmed hint text that wraps to the available width (Japanese has no spaces,
 // so long hints must wrap instead of being clipped).
 void hintText(const char* text);
+// Word wrap that also suits Japanese: breaks between any characters, keeps
+// Latin words together and follows basic kinsoku rules (no line starts with
+// 、。」 etc.). Returns [begin, end) of each line.
+std::vector<std::pair<const char*, const char*>> wrapLines(ImFont* font, float size, const char* text, const char* end, float width);
+// ImGui::TextWrapped replacement using wrapLines (current text colour).
+void wrappedText(const char* text);
 
 // Time display in the configured style ("timecode" / "frames" / "seconds").
 void setTimeStyle(const std::string& style);

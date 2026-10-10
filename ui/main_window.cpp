@@ -715,7 +715,7 @@ void MainWindow::recoveryDialog() {
     const std::string title = std::string(tr("Recover Unsaved Work")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
     floatingWindowDecor();
-    ImGui::TextWrapped("%s", tr("AviCap Studio did not close normally. The following projects have unsaved changes that can be recovered."));
+    wrappedText(tr("AviCap Studio did not close normally. The following projects have unsaved changes that can be recovered."));
     ImGui::Spacing();
     auto& list = app_.recoveryCandidates();
     const RecoveryCandidate* recover = nullptr;
@@ -755,7 +755,7 @@ void MainWindow::relinkDialog() {
     const std::string title = std::string(tr("Relink Media")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
     floatingWindowDecor();
-    ImGui::TextWrapped("%s", tr("These files could not be found. Locate one file and the others are searched next to it, or search a folder."));
+    wrappedText(tr("These files could not be found. Locate one file and the others are searched next to it, or search a folder."));
     int shown = 0;
     for (const auto& m : app_.project().media) {
         if (!app_.mediaOffline(m->id)) continue;

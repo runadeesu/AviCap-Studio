@@ -3,6 +3,7 @@
 
 #include <doctest.h>
 
+#include <cfloat>
 #include <chrono>
 #include <deque>
 #include <functional>
@@ -19,6 +20,7 @@
 #include "ui/effect_previews.h"
 #include "effects/effects.h"
 #include "ui/headless.h"
+#include "ui/widgets.h"
 
 using namespace avc;
 using namespace avc::ui;
@@ -614,4 +616,42 @@ TEST_CASE("effect browser previews render every effect and transition") {
     for (const auto& t : fx::transitions()) CHECK(previews.count("transition:" + t.id) == 1);
     // A neutral-by-default effect falls back to the icon tile.
     CHECK(previews.at("color.curves") == nullptr);
+}
+
+TEST_CASE("Japanese-aware wrapping keeps words together and follows kinsoku") {
+    AppOptions opt;
+    opt.dataDir = test::makeTempDir("ui_wrap");
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app, ImVec2(800, 600));
+    host.frames(1);
+    ImGui::SetCurrentContext(host.context());
+    ImFont* font = ImGui::GetFont();
+    const float size = 16.0f;
+    const char* ja = "BGM や効果音のファイルを「ミュージック」内の「AviCap Sounds」フォルダーに入れるか、お使いのフォルダーを追加してください。";
+    for (float width : {120.0f, 160.0f, 220.0f, 300.0f}) {
+        const auto lines = wrapLines(font, size, ja, nullptr, width);
+        REQUIRE(lines.size() >= 2);
+        std::string joined;
+        for (const auto& [b, e] : lines) {
+            const std::string line(b, e);
+            CHECK(font->CalcTextSizeA(size, FLT_MAX, 0.0f, b, e).x <= width + 0.5f);
+            CHECK(line.rfind("、", 0) != 0);  // no line starts with Japanese punctuation
+            CHECK(line.rfind("。", 0) != 0);
+            CHECK(line.rfind("」", 0) != 0);
+            CHECK((line.size() < 3 || line.compare(line.size() - 3, 3, "「") != 0));  // nor ends with an opening bracket
+            joined += line;
+        }
+        CHECK(lines.front().second - lines.front().first > 3);  // not just "BGM" on its own line
+        CHECK(joined.find("AviCap") != std::string::npos);      // Latin words are not split
+    }
+    const auto en = wrapLines(font, size, "Drop video, audio or image files here to import them.", nullptr, 150.0f);
+    for (const auto& [b, e] : en) {
+        const std::string line(b, e);
+        CHECK(line.front() != ' ');
+        CHECK(line.back() != ' ');
+    }
+    // Explicit newlines are kept.
+    CHECK(wrapLines(font, size, "a\nb", nullptr, 500.0f).size() == 2);
 }

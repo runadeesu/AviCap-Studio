@@ -158,6 +158,7 @@ int main(int argc, char** argv) {
         for (const char* ws : {"color", "audio", "export"}) {
             app.setWorkspace(ws);
             runUntil(host, [&] { return !app.animating(); }, 10);
+            runUntil(host, [&] { return !app.ui().showScopes || app.preview().latest().scopes != nullptr; }, 15);
             shot((std::string("03_workspace_") + ws + ".png").c_str(), 8);
         }
         app.setWorkspace("edit");

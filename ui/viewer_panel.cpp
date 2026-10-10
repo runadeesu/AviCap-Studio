@@ -303,7 +303,7 @@ void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
     ImGui::TextUnformatted(tr("Welcome to AviCap Studio"));
     ImGui::PopFont();
     ImGui::PushStyleColor(ImGuiCol_Text, pal::kTextMuted);
-    ImGui::TextWrapped("%s", tr("Let's start editing. Everything stays on this PC."));
+    wrappedText(tr("Let's start editing. Everything stays on this PC."));
     ImGui::PopStyleColor();
     ImGui::Dummy(ImVec2(0, fs * 0.6f));
 

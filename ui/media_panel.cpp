@@ -124,7 +124,7 @@ void MediaPanel::draw(App& app) {
                          tr("Supported: MP4, MOV, MKV, WebM, AVI, MP3, WAV, AAC, FLAC, PNG, JPEG and more.")))
                 app.importDialog();
         } else {
-            ImGui::TextWrapped("%s", tr("No media matches the filter."));
+            wrappedText(tr("No media matches the filter."));
         }
     }
     const ImGuiIO& io = ImGui::GetIO();

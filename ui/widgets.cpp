@@ -1,11 +1,13 @@
 #include "ui/widgets.h"
 
 #include <algorithm>
+#include <cctype>
 #include <iterator>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include <imgui_internal.h>
@@ -634,6 +636,53 @@ bool underlineTabs(const char* id, const char* const* labels, int count, int* cu
     return changed;
 }
 
+namespace {
+struct TabsState {
+    ImGuiID id = 0;
+    ImVec2 pos;
+    std::vector<std::string> labels;
+    int selected = 0;
+};
+std::vector<TabsState> g_tabs;  // nesting stack (UI thread only)
+}  // namespace
+
+bool beginTabs(const char* id) {
+    TabsState st;
+    st.id = ImGui::GetID(id);
+    st.pos = ImGui::GetCursorScreenPos();
+    st.selected = ImGui::GetStateStorage()->GetInt(st.id, 0);
+    ImGui::Dummy(ImVec2(ImGui::GetContentRegionAvail().x, ImGui::GetFrameHeight() + 2.0f));
+    ImGui::Spacing();
+    g_tabs.push_back(std::move(st));
+    return true;
+}
+
+bool tabItem(const char* label) {
+    if (g_tabs.empty()) return false;
+    TabsState& st = g_tabs.back();
+    st.labels.emplace_back(label);
+    return static_cast<int>(st.labels.size()) - 1 == st.selected;
+}
+
+void endTabs() {
+    if (g_tabs.empty()) return;
+    TabsState st = std::move(g_tabs.back());
+    g_tabs.pop_back();
+    const int n = static_cast<int>(st.labels.size());
+    if (n == 0) return;
+    int sel = std::clamp(st.selected, 0, n - 1);
+    std::vector<const char*> ptrs;
+    for (const auto& l : st.labels) ptrs.push_back(l.c_str());
+    const ImVec2 end = ImGui::GetCursorScreenPos();
+    ImGui::SetCursorScreenPos(st.pos);
+    ImGui::PushID(static_cast<int>(st.id));
+    underlineTabs("##bar", ptrs.data(), n, &sel);
+    ImGui::PopID();
+    if (sel != st.selected) ImGui::GetStateStorage()->SetInt(st.id, sel);
+    ImGui::SetCursorScreenPos(end);
+    ImGui::Dummy(ImVec2(0, 0));
+}
+
 bool iconTab(const char* id, Icon icon, const char* label, bool active, ImVec2 size) {
     const float fs = ImGui::GetFontSize();
     const ImVec2 pos = ImGui::GetCursorScreenPos();
@@ -709,11 +758,14 @@ bool dropZone(const char* id, ImVec2 size, Icon icon, const char* title, const c
     // Content block centred vertically: icon disc, title, subtitle, note.
     const float wrap = size.x - fs * 2;
     ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
-    const ImVec2 ts = bold->CalcTextSizeA(fs * 1.05f, FLT_MAX, wrap, title);
-    const ImVec2 ss = subtitle ? ImGui::GetFont()->CalcTextSizeA(fs * 0.92f, FLT_MAX, wrap, subtitle) : ImVec2(0, 0);
-    const ImVec2 ns = note ? ImGui::GetFont()->CalcTextSizeA(fs * 0.8f, FLT_MAX, wrap, note) : ImVec2(0, 0);
+    auto linesH = [&](ImFont* f, float sz, const char* t) {
+        return t ? static_cast<float>(wrapLines(f, sz, t, nullptr, wrap).size()) * sz * 1.25f : 0.0f;
+    };
+    const ImVec2 ts(0, linesH(bold, fs * 1.05f, title));
+    const ImVec2 ss(0, linesH(ImGui::GetFont(), fs * 0.92f, subtitle));
+    const ImVec2 ns(0, linesH(ImGui::GetFont(), fs * 0.8f, note));
     const float disc = fs * 3.0f;
-    const float blockH = disc + 12 + ts.y + (subtitle ? 6 + ss.y : 0) + (note ? 10 + ns.y : 0);
+    const float blockH = disc + 12 + ts.y + (subtitle ? 2 + ss.y : 0) + (note ? 8 + ns.y : 0);
     float y = pos.y + std::max(8.0f, (size.y - blockH) * 0.5f);
     const float cx = pos.x + size.x * 0.5f;
     gradientRect(dl, ImVec2(cx - disc * 0.5f, y), ImVec2(cx + disc * 0.5f, y + disc), pal::kAccentHover, pal::mix(pal::kAccent, pal::kAccent2, 0.6f),
@@ -722,17 +774,10 @@ bool dropZone(const char* id, ImVec2 size, Icon icon, const char* title, const c
     y += disc + 12;
     dl->PushClipRect(pos, pos + size, true);
     auto centered = [&](ImFont* f, float sz, ImU32 col, const char* text, ImVec2 tsz) {
-        // Wrapped text is drawn line by line so every line is centred.
-        const char* s = text;
-        const char* end = text + std::strlen(text);
-        while (s < end) {
-            const char* lineEnd = f->CalcWordWrapPosition(sz, s, end, wrap);
-            if (lineEnd == s) ++lineEnd;
-            const ImVec2 lsz = f->CalcTextSizeA(sz, FLT_MAX, 0.0f, s, lineEnd);
-            dl->AddText(f, sz, ImVec2(cx - lsz.x * 0.5f, y), col, s, lineEnd);
+        for (const auto& [b, e] : wrapLines(f, sz, text, nullptr, wrap)) {
+            const ImVec2 lsz = f->CalcTextSizeA(sz, FLT_MAX, 0.0f, b, e);
+            dl->AddText(f, sz, ImVec2(cx - lsz.x * 0.5f, y), col, b, e);
             y += sz * 1.25f;
-            s = lineEnd;
-            while (s < end && (*s == ' ' || *s == '\n')) ++s;
         }
         (void)tsz;
     };
@@ -948,9 +993,98 @@ void tooltip(const char* text) {
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", text);
 }
 
+namespace {
+// Characters that must not start a line (closing brackets, Japanese
+// punctuation, small kana) and ones that must not end one (opening brackets).
+bool noLineStart(unsigned c) {
+    switch (c) {
+    case 0x3001: case 0x3002: case 0xFF0C: case 0xFF0E: case 0x300D: case 0x300F: case 0xFF09: case 0x3011:
+    case 0xFF01: case 0xFF1F: case 0x30FC: case 0x3005: case 0x30FB: case 0xFF1A: case 0xFF1B:
+    case 0x3041: case 0x3043: case 0x3045: case 0x3047: case 0x3049: case 0x3063: case 0x3083: case 0x3085: case 0x3087:
+    case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9: case 0x30C3: case 0x30E3: case 0x30E5: case 0x30E7:
+    case ',': case '.': case ')': case ']': case '!': case '?': case ':': case ';':
+        return true;
+    default: return false;
+    }
+}
+bool noLineEnd(unsigned c) { return c == 0x300C || c == 0x300E || c == 0xFF08 || c == 0x3010 || c == '(' || c == '['; }
+bool isWordChar(unsigned c) { return c < 0x80 && (std::isalnum(static_cast<int>(c)) || c == '_' || c == '-' || c == '.' || c == '/' || c == '%' || c == '+'); }
+
+struct Cp {
+    const char* p;
+    unsigned c;
+};
+}  // namespace
+
+std::vector<std::pair<const char*, const char*>> wrapLines(ImFont* font, float size, const char* text, const char* end, float width) {
+    std::vector<std::pair<const char*, const char*>> lines;
+    if (!text) return lines;
+    if (!end) end = text + std::strlen(text);
+    const char* s = text;
+    while (s < end) {
+        // Longest prefix that fits (up to a newline).
+        std::vector<Cp> cps;
+        const char* p = s;
+        float w = 0.0f;
+        bool newline = false;
+        while (p < end) {
+            unsigned c = 0;
+            const int n = ImTextCharFromUtf8(&c, p, end);
+            if (c == '\n') {
+                newline = true;
+                break;
+            }
+            const float cw = font->CalcTextSizeA(size, FLT_MAX, 0.0f, p, p + n).x;
+            if (w + cw > width && !cps.empty()) break;
+            cps.push_back({p, c});
+            w += cw;
+            p += n;
+        }
+        if (p >= end || newline) {
+            lines.emplace_back(s, p);
+            s = newline ? p + 1 : p;
+            continue;
+        }
+        // Must break before cps[k] (k = index of the first char of the next line).
+        size_t k = cps.size();
+        unsigned next = 0;
+        ImTextCharFromUtf8(&next, p, end);
+        const size_t minKeep = std::max<size_t>(1, cps.size() * 2 / 5);
+        if (isWordChar(next) && isWordChar(cps.back().c)) {
+            // Mid Latin word: break before the word if it starts on this line.
+            size_t j = k;
+            while (j > minKeep && isWordChar(cps[j - 1].c)) --j;
+            if (j > minKeep) k = j;
+        }
+        // Kinsoku: pull a forbidden line-start character back onto this line
+        // by breaking one character earlier, and never end on an opening bracket.
+        if (k == cps.size() && noLineStart(next) && k > minKeep) --k;
+        while (k > minKeep && k < cps.size() && noLineStart(cps[k].c)) --k;
+        while (k > minKeep && noLineEnd(cps[k - 1].c)) --k;
+        const char* brk = k < cps.size() ? cps[k].p : p;
+        const char* lineEnd = brk;
+        while (lineEnd > s && lineEnd[-1] == ' ') --lineEnd;
+        lines.emplace_back(s, lineEnd);
+        s = brk;
+        while (s < end && *s == ' ') ++s;
+    }
+    return lines;
+}
+
+void wrappedText(const char* text) {
+    // Same width rules as ImGui::TextWrapped: an explicit wrap position wins;
+    // auto-resizing windows (modals, tooltips) get a comfortable fixed width.
+    ImGuiWindow* win = ImGui::GetCurrentWindow();
+    float width = ImGui::GetContentRegionAvail().x;
+    if (win->DC.TextWrapPos > 0.0f) width = win->DC.TextWrapPos - ImGui::GetCursorPosX();
+    else if (win->Flags & (ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_Tooltip)) width = ImGui::GetFontSize() * 30.0f;
+    width = std::max(ImGui::GetFontSize() * 4, width);
+    for (const auto& [b, e] : wrapLines(ImGui::GetFont(), ImGui::GetFontSize(), text, nullptr, width)) ImGui::TextUnformatted(b, e);
+}
+
 void hintText(const char* text) {
     ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", text);
+    wrappedText(text);
     ImGui::PopStyleColor();
 }
 

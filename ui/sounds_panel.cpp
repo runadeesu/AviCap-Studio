@@ -51,16 +51,14 @@ void SoundsPanel::draw(App& app) {
         scanned_ = true;
         lib.rescan();
     }
-    if (!ImGui::BeginTabBar("##sound_tabs")) return;
-    if (ImGui::BeginTabItem(tr("Library"))) {
+    if (!beginTabs("##sound_tabs")) return;
+    if (tabItem(tr("Library"))) {
         drawLibrary(app);
-        ImGui::EndTabItem();
     }
-    if (ImGui::BeginTabItem("Myinstants")) {
+    if (tabItem("Myinstants")) {
         drawWebSounds(app);
-        ImGui::EndTabItem();
     }
-    ImGui::EndTabBar();
+    endTabs();
 }
 
 void SoundsPanel::soundRow(App& app, const SoundItem& s, int index) {
@@ -166,16 +164,16 @@ void SoundsPanel::drawLibrary(App& app) {
 
     if (lib.items().empty() && !lib.scanning()) {
         ImGui::Spacing();
-        hintText(tr("Put BGM and sound-effect files in the \"AviCap Sounds\" folder (in your Music folder) or add your own folder. Files are used from where they are; nothing is uploaded."));
-        if (iconTextButton("##openlib", Icon::Folder, tr("Open the Sounds Folder"))) {
+        const ImVec2 avail = ImGui::GetContentRegionAvail();
+        if (dropZone("##emptysounds", ImVec2(avail.x, std::max(ImGui::GetFontSize() * 11.0f, avail.y - 4)), Icon::Music, tr("No sounds yet"),
+                     tr("Put BGM and sound-effect files in the \"AviCap Sounds\" folder (in your Music folder) or add your own folder. Files are used from where they are; nothing is uploaded."),
+                     tr("Click to open the sounds folder"))) {
             std::error_code ec;
             const fs::path d = lib.rootFolder();
             fs::create_directories(d / "BGM", ec);
             fs::create_directories(d / "SFX", ec);
             openWithShell(pathToUtf8(d));
         }
-        ImGui::SameLine();
-        if (iconTextButton("##addbgm", Icon::Music, tr("Add Music..."))) app.addAudioDialog(true);
         return;
     }
 
@@ -209,7 +207,7 @@ void SoundsPanel::drawWebSounds(App& app) {
     SoundLibrary& lib = app.sounds();
     hintText(tr("Myinstants has no official API, so AviCap Studio does not download from it automatically. Open the site in your browser, download the sounds you like with the site's own download button, then import the downloaded files here."));
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.80f, 0.35f, 1.0f));
-    ImGui::TextWrapped("%s", tr("Sounds belong to their uploaders. Check the terms of use before using a sound in your video."));
+    wrappedText(tr("Sounds belong to their uploaders. Check the terms of use before using a sound in your video."));
     ImGui::PopStyleColor();
 
     // Step 1: browser

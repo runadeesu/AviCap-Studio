@@ -1051,3 +1051,5 @@
 {"clips selected", "個のクリップを選択中"},
 {"Click here, or drop video, audio and image files", "ここをクリックするか、動画・音声・画像ファイルをドロップ"},
 {"Drag media here to start editing", "メディアをここにドラッグして編集を始めましょう"},
+{"No sounds yet", "サウンドがまだありません"},
+{"Click to open the sounds folder", "クリックするとサウンドフォルダーを開きます"},

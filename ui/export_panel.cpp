@@ -62,17 +62,15 @@ void ExportPanel::draw(App& app) {
         initialized_ = true;
         projectPathAtInit_ = app.projectPath();
     }
-    if (ImGui::BeginTabBar("##exporttabs")) {
-        if (ImGui::BeginTabItem(tr("Settings"))) {
+    if (beginTabs("##exporttabs")) {
+        if (tabItem(tr("Settings"))) {
             drawSettings(app);
-            ImGui::EndTabItem();
         }
         std::string queueLabel = std::string(tr("Queue")) + " (" + std::to_string(app.exports().jobs().size()) + ")###queue";
-        if (ImGui::BeginTabItem(queueLabel.c_str())) {
+        if (tabItem(queueLabel.c_str())) {
             drawQueue(app);
-            ImGui::EndTabItem();
         }
-        ImGui::EndTabBar();
+        endTabs();
     }
 }
 
