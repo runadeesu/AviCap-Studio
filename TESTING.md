@@ -13,7 +13,7 @@ GitHub Actions の Windows ジョブ（MSVC）は WARP 上で D3D11 のテスト
 生成しないため、メディアを使うテストはスキップされ、Linux ジョブで実行されます）。
 Linux から作った Windows 版は `tools/package_windows.sh --smoke-test` で Wine 上の自己テストを実行します。
 
-## 範囲（139 テストケース）
+## 範囲（143 テストケース）
 
 | ファイル | 内容 |
 | --- | --- |
