@@ -12,6 +12,7 @@
 #include "core/net.h"
 #include "core/platform.h"
 #include "ui/panels.h"
+#include "ui/style.h"
 #include "ui/widgets.h"
 
 namespace avc::ui {
@@ -34,13 +35,10 @@ void busyBar(App& app) {
 
 // Wrapping row of small buttons.
 bool chip(const char* label) {
-    const float w = ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 2;
+    const float w = ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 1.8f;
     const float right = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x;
-    if (ImGui::GetItemRectMax().x + ImGui::GetStyle().ItemSpacing.x + w < right) ImGui::SameLine();
-    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 10.0f);
-    const bool r = ImGui::SmallButton(label);
-    ImGui::PopStyleVar();
-    return r;
+    if (ImGui::GetItemRectMax().x + 6 + w < right) ImGui::SameLine(0, 6);
+    return chipButton(label, false);
 }
 
 std::string seconds(double s) {
@@ -53,24 +51,31 @@ std::string seconds(double s) {
 }  // namespace
 
 void AiPanel::draw(App& app) {
-    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-    ImGui::TextWrapped("%s", tr("Everything is processed on this PC. Your video is never uploaded."));
-    ImGui::PopStyleColor();
+    // Privacy badge (details in the tooltip).
+    {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const float fs = ImGui::GetFontSize();
+        const char* label = tr("Processed on this PC");
+        const ImVec2 ts = ImGui::CalcTextSize(label);
+        const ImVec2 p = ImGui::GetCursorScreenPos();
+        const ImVec2 size(ts.x + fs * 1.9f, fs * 1.5f);
+        ImGui::InvisibleButton("##privacy", size);
+        tooltip(tr("Everything is processed on this PC. Your video is never uploaded."));
+        dl->AddRectFilled(p, p + size, pal::withAlpha(pal::kSuccess, 0.14f), size.y * 0.5f);
+        drawIcon(dl, Icon::Lock, p + ImVec2(fs * 0.8f, size.y * 0.5f), fs * 0.7f, pal::kSuccess);
+        dl->AddText(p + ImVec2(fs * 1.45f, (size.y - ts.y) * 0.5f), pal::kSuccess, label);
+    }
     busyBar(app);
-    if (!ImGui::BeginTabBar("##ai_tabs")) return;
-    if (ImGui::BeginTabItem(tr("AI Edit"))) {
-        drawPlan(app);
-        ImGui::EndTabItem();
-    }
-    if (ImGui::BeginTabItem(tr("Silence Removal"))) {
-        drawSilence(app);
-        ImGui::EndTabItem();
-    }
-    if (ImGui::BeginTabItem(tr("Beats & Scenes"))) {
-        drawAnalysis(app);
-        ImGui::EndTabItem();
-    }
-    ImGui::EndTabBar();
+    ImGui::Spacing();
+    const char* pages[] = {tr("AI Edit"), tr("Silence Removal"), tr("Beats & Scenes")};
+    segmented("##aipages", pages, 3, &page_);
+    ImGui::Spacing();
+    ImGui::Spacing();
+    ImGui::BeginChild("##aipage");
+    if (page_ == 0) drawPlan(app);
+    else if (page_ == 1) drawSilence(app);
+    else drawAnalysis(app);
+    ImGui::EndChild();
 }
 
 // ------------------------------------------------------------------ natural-language editing

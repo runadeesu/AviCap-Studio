@@ -1027,3 +1027,4 @@
 {"+ Import", "＋ 読み込み"},
 {"Sort and view", "並べ替えと表示"},
 {"double-click: center", "ダブルクリックで中央"},
+{"Processed on this PC", "この PC 上で処理"},

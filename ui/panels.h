@@ -257,6 +257,7 @@ private:
     char prompt_[2048] = {};
     char keyBuf_[256] = {};
     bool rememberKey_ = true;
+    int page_ = 0;  // 0 AI edit, 1 silence, 2 beats & scenes
     float sensitivity_ = 0.5f;
 };
 
