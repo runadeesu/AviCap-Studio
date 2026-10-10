@@ -65,13 +65,13 @@ void App::registerCommands() {
     });
 
     // ---------------------------------------------------------------- Tools
-    auto tool = [this](Tool t) { return [this, t] { this->tool = t; }; };
-    add("tool.select", "Selection Tool", "Tools", {{"avicap", "V"}, {"resolve", "A"}}, tool(Tool::Select));
-    add("tool.razor", "Razor Tool", "Tools", {{"avicap", "C"}, {"resolve", "B"}}, tool(Tool::Razor));
-    add("tool.ripple", "Ripple Edit Tool", "Tools", {{"avicap", "B"}, {"resolve", "T"}}, tool(Tool::Ripple));
-    add("tool.roll", "Rolling Edit Tool", "Tools", {{"avicap", "N"}, {"resolve", "Shift+T"}}, tool(Tool::Roll));
-    add("tool.slip", "Slip Tool", "Tools", {{"avicap", "Y"}}, tool(Tool::Slip));
-    add("tool.slide", "Slide Tool", "Tools", {{"avicap", "U"}}, tool(Tool::Slide));
+    auto setTool = [this](Tool t) { return [this, t] { this->tool = t; }; };
+    add("tool.select", "Selection Tool", "Tools", {{"avicap", "V"}, {"resolve", "A"}}, setTool(Tool::Select));
+    add("tool.razor", "Razor Tool", "Tools", {{"avicap", "C"}, {"resolve", "B"}}, setTool(Tool::Razor));
+    add("tool.ripple", "Ripple Edit Tool", "Tools", {{"avicap", "B"}, {"resolve", "T"}}, setTool(Tool::Ripple));
+    add("tool.roll", "Rolling Edit Tool", "Tools", {{"avicap", "N"}, {"resolve", "Shift+T"}}, setTool(Tool::Roll));
+    add("tool.slip", "Slip Tool", "Tools", {{"avicap", "Y"}}, setTool(Tool::Slip));
+    add("tool.slide", "Slide Tool", "Tools", {{"avicap", "U"}}, setTool(Tool::Slide));
 
     // ---------------------------------------------------------------- Timeline
     add("timeline.split", "Split at Playhead", "Timeline", {{"avicap", "Ctrl+K"}, {"resolve", "Ctrl+B"}},

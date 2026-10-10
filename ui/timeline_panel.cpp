@@ -254,7 +254,6 @@ void TimelinePanel::draw(App& app) {
     }
     if (seq->clipCount() == 0 && !preview_) {
         // Empty state: a dashed drop band in the middle of the tracks.
-        const float fs = ImGui::GetFontSize();
         const float bandH = std::min(fs * 4.2f, (areaMax_.y - areaMin_.y) - 16);
         const ImVec2 c((areaMin_.x + areaMax_.x) * 0.5f, (areaMin_.y + areaMax_.y) * 0.5f);
         const ImVec2 a(areaMin_.x + 16, c.y - bandH * 0.5f), b(areaMax_.x - 16, c.y + bandH * 0.5f);

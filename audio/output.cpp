@@ -11,9 +11,12 @@
 
 #if defined(_WIN32)
 #include <windows.h>
-#include <audioclient.h>
-#include <functiondiscoverykeys_devpkey.h>
 #include <mmdeviceapi.h>
+#include <audioclient.h>
+// DEFINE_PROPERTYKEY (propkeydef.h) must be visible before the device
+// property keys; recent Windows SDKs no longer pull it in implicitly.
+#include <propkeydef.h>
+#include <functiondiscoverykeys_devpkey.h>
 #endif
 
 namespace avc::audio {
