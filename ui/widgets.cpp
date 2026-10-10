@@ -638,6 +638,7 @@ bool underlineTabs(const char* id, const char* const* labels, int count, int* cu
 
 namespace {
 struct TabsState {
+    int frame = -1;
     ImGuiID id = 0;
     ImVec2 pos;
     std::vector<std::string> labels;
@@ -647,7 +648,10 @@ std::vector<TabsState> g_tabs;  // nesting stack (UI thread only)
 }  // namespace
 
 bool beginTabs(const char* id) {
+    // A caller that returned without endTabs() must not confuse later frames.
+    while (!g_tabs.empty() && g_tabs.back().frame != ImGui::GetFrameCount()) g_tabs.pop_back();
     TabsState st;
+    st.frame = ImGui::GetFrameCount();
     st.id = ImGui::GetID(id);
     st.pos = ImGui::GetCursorScreenPos();
     st.selected = ImGui::GetStateStorage()->GetInt(st.id, 0);

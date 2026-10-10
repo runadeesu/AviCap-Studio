@@ -494,7 +494,10 @@ void InspectorPanel::drawClip(App& app, const Sequence& seq, const Clip& clip) {
         if (sectionHeader(tr("Transform"))) {
             drawParamSet(app, clip, transformParamDefs(), 0, "Transform");
             bool fh = clip.flipH, fv = clip.flipV;
-            if (checkbox(tr("Flip Horizontal"), &fh) | (ImGui::SameLine(), checkbox(tr("Flip Vertical"), &fv))) {
+            bool flipChanged = checkbox(tr("Flip Horizontal"), &fh);  // evaluated in order (layout)
+            ImGui::SameLine();
+            flipChanged |= checkbox(tr("Flip Vertical"), &fv);
+            if (flipChanged) {
                 const ClipId id = clip.id;
                 app.editSequence("Flip", [&](SequenceEditor& e) {
                     e.mutableClip(id).flipH = fh;
