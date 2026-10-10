@@ -16,6 +16,8 @@
 #include "tests/test_support.h"
 #include "ui/app.h"
 #include "ui/commands.h"
+#include "ui/effect_previews.h"
+#include "effects/effects.h"
 #include "ui/headless.h"
 
 using namespace avc;
@@ -565,4 +567,51 @@ TEST_CASE("subtitle files through the app: Shift_JIS import, export, undo") {
     app.undo();
     CHECK_FALSE(app.exportSubtitles(pathToUtf8(dir / "empty.srt")));
     CHECK_FALSE(app.importSubtitles(pathToUtf8(dir / "missing.srt")));
+}
+
+TEST_CASE("aspect ratio presets keep the short side and undo in one step") {
+    AppOptions opt;
+    opt.dataDir = test::makeTempDir("ui_aspect");
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app, ImVec2(1280, 800));
+    host.frames(2);
+    REQUIRE(app.sequence());
+    REQUIRE(app.sequence()->width == 1920);
+    REQUIRE(app.sequence()->height == 1080);
+    REQUIRE(app.setSequenceAspect(9, 16));
+    CHECK(app.sequence()->width == 1080);
+    CHECK(app.sequence()->height == 1920);
+    CHECK(app.doc().undoLabel() == "Aspect Ratio");
+    REQUIRE(app.setSequenceAspect(1, 1));
+    CHECK(app.sequence()->width == 1080);
+    CHECK(app.sequence()->height == 1080);
+    REQUIRE(app.setSequenceAspect(21, 9));
+    CHECK(app.sequence()->width == 2520);
+    CHECK(app.sequence()->height == 1080);
+    app.undo();
+    CHECK(app.sequence()->width == 1080);
+    CHECK_FALSE(app.setSequenceAspect(0, 9));
+    host.frames(2);  // inspector and viewer draw the presets without issues
+}
+
+TEST_CASE("effect browser previews render every effect and transition") {
+    const auto previews = renderEffectPreviews(64, 36);
+    const auto& reg = fx::EffectRegistry::instance();
+    int shown = 0;
+    for (const fx::EffectDef* d : reg.list(fx::EffectKind::Video)) {
+        auto it = previews.find(d->id);
+        REQUIRE(it != previews.end());
+        if (it->second) {
+            ++shown;
+            CHECK(it->second->width == 64);
+            CHECK(it->second->height == 36);
+            CHECK(it->second->rgba.size() == 64u * 36u * 4u);
+        }
+    }
+    CHECK(shown >= static_cast<int>(reg.list(fx::EffectKind::Video).size()) / 2);
+    for (const auto& t : fx::transitions()) CHECK(previews.count("transition:" + t.id) == 1);
+    // A neutral-by-default effect falls back to the icon tile.
+    CHECK(previews.at("color.curves") == nullptr);
 }

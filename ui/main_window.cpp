@@ -98,18 +98,7 @@ void MainWindow::header() {
     // Logo: rounded gradient tile with a play glyph.
     const float logo = std::round(barH * 0.58f);
     const ImVec2 lp(bar.Min.x + 14, bar.Min.y + std::round((barH - logo) * 0.5f));
-    dl->AddRectFilledMultiColor(lp, lp + ImVec2(logo, logo), pal::kAccentHover, pal::mix(pal::kAccent, pal::kAccent2, 0.5f),
-                                pal::kAccent2, pal::kAccent);
-    // Round the gradient's corners by masking them with the bar colour.
-    const float r = logo * 0.28f;
-    for (int k = 0; k < 4; ++k) {
-        const ImVec2 corner(k % 2 ? lp.x + logo : lp.x, k / 2 ? lp.y + logo : lp.y);
-        const ImVec2 center(k % 2 ? corner.x - r : corner.x + r, k / 2 ? corner.y - r : corner.y + r);
-        const float a0 = k == 0 ? IM_PI : k == 1 ? IM_PI * 1.5f : k == 2 ? IM_PI * 0.5f : 0.0f;
-        dl->PathLineTo(corner);
-        dl->PathArcTo(center, r, a0, a0 + IM_PI * 0.5f, 8);
-        dl->PathFillConcave(pal::kAppBg);
-    }
+    gradientRect(dl, lp, lp + ImVec2(logo, logo), pal::kAccentHover, pal::kAccent2, logo * 0.28f);
     drawIcon(dl, Icon::Play, lp + ImVec2(logo * 0.54f, logo * 0.5f), logo * 0.62f, IM_COL32(255, 255, 255, 255));
     ImGui::SetCursorScreenPos(ImVec2(lp.x + logo + 10, ImGui::GetCursorScreenPos().y));
 

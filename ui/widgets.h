@@ -79,6 +79,13 @@ struct AspectPreset {
     [[nodiscard]] bool matches(int w, int h) const { return static_cast<long long>(w) * den == static_cast<long long>(h) * num; }
 };
 const AspectPreset* aspectPresets(int* count);
+// Rounded rectangle filled with a linear gradient (diagonal by default).
+void gradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 c0, ImU32 c1, float rounding, ImDrawFlags flags = 0, bool diagonal = true);
+// Rounded dashed outline (drop zones).
+void dashedRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 col, float rounding, float thickness = 1.5f, float dash = 7.0f, float gap = 5.0f);
+// Large dashed "drop files here" area with an icon and up to three lines of
+// text; returns true when clicked.
+bool dropZone(const char* id, ImVec2 size, Icon icon, const char* title, const char* subtitle = nullptr, const char* note = nullptr);
 // Full-width sidebar entry (icon + label) used by the settings categories.
 bool navItem(const char* id, Icon icon, const char* label, bool active);
 // Soft drop shadow and hairline border around a floating (undocked) window;

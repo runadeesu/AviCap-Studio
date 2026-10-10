@@ -42,11 +42,12 @@ struct Tile {
     std::string tip;
     Icon icon = Icon::Effects;
     bool audio = false;
+    std::string previewKey;  // AssetService::effectPreview key (empty = icon tile)
 };
 
 // Grid of tiles; returns the index double-clicked (or -1). Drag payloads are
 // set by the caller through `dragType`.
-int tileGrid(const std::vector<Tile>& tiles, const char* dragType) {
+int tileGrid(App& app, const std::vector<Tile>& tiles, const char* dragType) {
     const float avail = ImGui::GetContentRegionAvail().x;
     const float spacing = 8.0f;
     const float minW = ImGui::GetFontSize() * 6.2f;
@@ -72,11 +73,28 @@ int tileGrid(const std::vector<Tile>& tiles, const char* dragType) {
         tooltip(t.tip.c_str());
         const auto [c0, c1] = categoryColors(t.category, t.audio);
         const ImVec2 a = pos, b = pos + ImVec2(w, previewH);
-        // Rounded gradient preview with the icon.
-        dl->AddRectFilled(a, b, c1, pal::kControlRadius + 1);
-        dl->AddRectFilledMultiColor(a + ImVec2(pal::kControlRadius * 0.6f, 0), b - ImVec2(pal::kControlRadius * 0.6f, 0), c0, scaleColor(c0, 0.9f), c1, c1);
-        dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, hovered ? 0 : 40), pal::kControlRadius + 1);
-        drawIcon(dl, t.icon, a + ImVec2(w * 0.5f, previewH * 0.5f), previewH * 0.42f, IM_COL32(255, 255, 255, 230));
+        const ImTextureID preview = t.previewKey.empty() ? ImTextureID_Invalid : app.assets().effectPreview(t.previewKey);
+        if (preview != ImTextureID_Invalid) {
+            // The effect applied to the sample picture (cover-fit, rounded).
+            const float ar = 192.0f / 108.0f, tileAr = w / previewH;
+            ImVec2 uv0(0, 0), uv1(1, 1);
+            if (tileAr > ar) {
+                const float k = ar / tileAr;
+                uv0.y = (1 - k) * 0.5f;
+                uv1.y = 1 - uv0.y;
+            } else {
+                const float k = tileAr / ar;
+                uv0.x = (1 - k) * 0.5f;
+                uv1.x = 1 - uv0.x;
+            }
+            dl->AddImageRounded(ImTextureRef(preview), a, b, uv0, uv1, IM_COL32(255, 255, 255, 255), pal::kControlRadius + 1);
+            if (!hovered) dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, 30), pal::kControlRadius + 1);
+        } else {
+            // Rounded gradient with the icon.
+            gradientRect(dl, a, b, c0, c1, pal::kControlRadius + 1);
+            dl->AddRectFilled(a, b, IM_COL32(0, 0, 0, hovered ? 0 : 40), pal::kControlRadius + 1);
+            drawIcon(dl, t.icon, a + ImVec2(w * 0.5f, previewH * 0.5f), previewH * 0.42f, IM_COL32(255, 255, 255, 230));
+        }
         if (hovered) dl->AddRect(a, b, IM_COL32(255, 255, 255, 120), pal::kControlRadius + 1, 1.5f);
         // Label (clipped to the tile width).
         ImGui::PushClipRect(ImVec2(pos.x, b.y), ImVec2(pos.x + w, b.y + labelH), true);
@@ -104,9 +122,9 @@ void EffectsPanel::draw(App& app, Mode mode) {
             const std::string shown = tr(t.name.c_str());
             if (!matches(shown, search_) && !matches(t.name, search_)) continue;
             tiles.push_back({t.id, shown, "Transition", tr("Double-click to add at the nearest edge of the selected clips, or drag onto a clip edge"),
-                             Icon::Transition, false});
+                             Icon::Transition, false, "transition:" + t.id});
         }
-        const int hit = tileGrid(tiles, kPayloadTransition);
+        const int hit = tileGrid(app, tiles, kPayloadTransition);
         if (hit >= 0)
             if (const auto* t = fx::findTransition(tiles[static_cast<size_t>(hit)].id))
                 app.applyTransition(t->id, Time::fromSeconds(t->defaultSeconds));
@@ -142,13 +160,14 @@ void EffectsPanel::draw(App& app, Mode mode) {
             if (!matches(shown, search_) && !matches(d->name, search_)) continue;
             const std::string tip = !d->description.empty() ? std::string(tr(d->description.c_str()))
                                                             : std::string(tr("Double-click to apply to the selected clips, or drag onto a clip"));
-            tiles.push_back({d->id, shown, d->category, tip, audio ? Icon::Sound : d->category == "Color" ? Icon::Palette : Icon::Effects, audio});
+            tiles.push_back({d->id, shown, d->category, tip, audio ? Icon::Sound : d->category == "Color" ? Icon::Palette : Icon::Effects, audio,
+                             audio ? std::string() : d->id});
         }
     };
     addEffects(fx::EffectKind::Video);
     addEffects(fx::EffectKind::Audio);
     if (!tiles.empty()) {
-        const int hit = tileGrid(tiles, kPayloadEffect);
+        const int hit = tileGrid(app, tiles, kPayloadEffect);
         if (hit >= 0) app.applyEffect(tiles[static_cast<size_t>(hit)].id);
     }
     // Generators (not effects: they add clips at the playhead).
@@ -161,7 +180,7 @@ void EffectsPanel::draw(App& app, Mode mode) {
         if (!gens.empty()) {
             ImGui::Spacing();
             ImGui::TextDisabled("%s", tr("Generators"));
-            const int hit = tileGrid(gens, "AVC_GENERATOR");
+            const int hit = tileGrid(app, gens, "AVC_GENERATOR");
             if (hit >= 0) {
                 if (gens[static_cast<size_t>(hit)].id == "gen.adjustment") app.addAdjustmentLayer();
                 else app.addSolidClip(pv(0.1f, 0.1f, 0.1f, 1));

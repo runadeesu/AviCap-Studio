@@ -660,6 +660,95 @@ bool iconTab(const char* id, Icon icon, const char* label, bool active, ImVec2 s
     return pressed;
 }
 
+void gradientRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 c0, ImU32 c1, float rounding, ImDrawFlags flags, bool diagonal) {
+    const int v0 = dl->VtxBuffer.Size;
+    dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 255), rounding, flags);
+    const ImVec2 p1 = diagonal ? b : ImVec2(b.x, a.y);
+    ImGui::ShadeVertsLinearColorGradientKeepAlpha(dl, v0, dl->VtxBuffer.Size, a, p1, c0, c1);
+    // Keep the gradient's own alpha (ShadeVerts keeps the white's alpha).
+    const ImU32 alpha = std::min(c0 >> 24, c1 >> 24);
+    if (alpha < 255)
+        for (int i = v0; i < dl->VtxBuffer.Size; ++i) {
+            ImU32& col = dl->VtxBuffer[i].col;
+            col = (col & 0x00FFFFFFu) | ((((col >> 24) * alpha) / 255u) << 24);
+        }
+}
+
+void dashedRect(ImDrawList* dl, ImVec2 a, ImVec2 b, ImU32 col, float rounding, float thickness, float dash, float gap) {
+    dl->PathRect(a, b, rounding);
+    const ImVector<ImVec2> pts = dl->_Path;
+    dl->PathClear();
+    if (pts.Size < 2) return;
+    float phase = 0.0f;  // distance travelled inside the current dash+gap period
+    const float period = dash + gap;
+    for (int i = 0; i < pts.Size; ++i) {
+        const ImVec2 p = pts[i], q = pts[(i + 1) % pts.Size];
+        const ImVec2 d = q - p;
+        const float len = std::sqrt(d.x * d.x + d.y * d.y);
+        float t = 0.0f;
+        while (t < len) {
+            const float inPeriod = std::fmod(phase, period);
+            const float step = std::min(len - t, inPeriod < dash ? dash - inPeriod : period - inPeriod);
+            if (inPeriod < dash) dl->AddLine(p + d * (t / len), p + d * ((t + step) / len), col, thickness);
+            t += step;
+            phase += step;
+        }
+    }
+}
+
+bool dropZone(const char* id, ImVec2 size, Icon icon, const char* title, const char* subtitle, const char* note) {
+    const float fs = ImGui::GetFontSize();
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered();
+    const bool dropping = ImGui::GetDragDropPayload() != nullptr || hovered;
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const float r = pal::kControlRadius + 4;
+    dl->AddRectFilled(pos, pos + size, hovered ? pal::withAlpha(pal::kAccent, 0.08f) : IM_COL32(255, 255, 255, 6), r);
+    dashedRect(dl, pos + ImVec2(1, 1), pos + size - ImVec2(1, 1), dropping ? pal::withAlpha(pal::kAccent, 0.85f) : IM_COL32(255, 255, 255, 52), r);
+    // Content block centred vertically: icon disc, title, subtitle, note.
+    const float wrap = size.x - fs * 2;
+    ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+    const ImVec2 ts = bold->CalcTextSizeA(fs * 1.05f, FLT_MAX, wrap, title);
+    const ImVec2 ss = subtitle ? ImGui::GetFont()->CalcTextSizeA(fs * 0.92f, FLT_MAX, wrap, subtitle) : ImVec2(0, 0);
+    const ImVec2 ns = note ? ImGui::GetFont()->CalcTextSizeA(fs * 0.8f, FLT_MAX, wrap, note) : ImVec2(0, 0);
+    const float disc = fs * 3.0f;
+    const float blockH = disc + 12 + ts.y + (subtitle ? 6 + ss.y : 0) + (note ? 10 + ns.y : 0);
+    float y = pos.y + std::max(8.0f, (size.y - blockH) * 0.5f);
+    const float cx = pos.x + size.x * 0.5f;
+    gradientRect(dl, ImVec2(cx - disc * 0.5f, y), ImVec2(cx + disc * 0.5f, y + disc), pal::kAccentHover, pal::mix(pal::kAccent, pal::kAccent2, 0.6f),
+                 disc * 0.5f);
+    drawIcon(dl, icon, ImVec2(cx, y + disc * 0.5f), fs * 1.3f, IM_COL32(255, 255, 255, 255));
+    y += disc + 12;
+    dl->PushClipRect(pos, pos + size, true);
+    auto centered = [&](ImFont* f, float sz, ImU32 col, const char* text, ImVec2 tsz) {
+        // Wrapped text is drawn line by line so every line is centred.
+        const char* s = text;
+        const char* end = text + std::strlen(text);
+        while (s < end) {
+            const char* lineEnd = f->CalcWordWrapPosition(sz, s, end, wrap);
+            if (lineEnd == s) ++lineEnd;
+            const ImVec2 lsz = f->CalcTextSizeA(sz, FLT_MAX, 0.0f, s, lineEnd);
+            dl->AddText(f, sz, ImVec2(cx - lsz.x * 0.5f, y), col, s, lineEnd);
+            y += sz * 1.25f;
+            s = lineEnd;
+            while (s < end && (*s == ' ' || *s == '\n')) ++s;
+        }
+        (void)tsz;
+    };
+    centered(bold, fs * 1.05f, pal::kText, title, ts);
+    if (subtitle) {
+        y += 2;
+        centered(ImGui::GetFont(), fs * 0.92f, pal::kTextMuted, subtitle, ss);
+    }
+    if (note) {
+        y += 8;
+        centered(ImGui::GetFont(), fs * 0.8f, pal::kTextFaint, note, ns);
+    }
+    dl->PopClipRect();
+    return pressed;
+}
+
 bool navItem(const char* id, Icon icon, const char* label, bool active) {
     const float fs = ImGui::GetFontSize();
     const float w = ImGui::GetContentRegionAvail().x;

@@ -10,6 +10,7 @@ set(AVICAP_UI_SOURCES
     commands.cpp
     diagnostics_panel.cpp
     edit_helpers.cpp
+    effect_previews.cpp
     effects_panel.cpp
     export_panel.cpp
     headless.cpp

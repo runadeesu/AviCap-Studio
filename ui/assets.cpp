@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/log.h"
+#include "ui/effect_previews.h"
 
 namespace avc::ui {
 
@@ -140,6 +141,55 @@ ImTextureID AssetService::dynamicTexture(const std::string& slot, const std::sha
     }
     void* view = device_.nativeView(*d.tex);
     return view ? reinterpret_cast<ImTextureID>(view) : ImTextureID_Invalid;
+}
+
+ImTextureID AssetService::effectPreview(const std::string& key) {
+    if (auto it = fxTextures_.find(key); it != fxTextures_.end()) {
+        void* view = it->second ? device_.nativeView(*it->second) : nullptr;
+        return view ? reinterpret_cast<ImTextureID>(view) : ImTextureID_Invalid;
+    }
+    cache::ImagePtr img;
+    {
+        std::lock_guard lk(mutex_);
+        if (!fxRequested_) {
+            fxRequested_ = true;
+            ++inFlight_;
+            const CancelToken token = group_.child();
+            Jobs::cache().submit("Effect previews", JobPriority::Low, [this, token](JobContext&) {
+                auto images = renderEffectPreviews(192, 108, token);
+                {
+                    std::lock_guard lk2(mutex_);
+                    fxImages_ = std::move(images);
+                    fxReady_ = !token.cancelled();
+                    if (!fxReady_) fxRequested_ = false;  // retry later
+                }
+                --inFlight_;
+                if (wake_) wake_();
+            }, token);
+            return ImTextureID_Invalid;
+        }
+        if (!fxReady_) return ImTextureID_Invalid;
+        auto it = fxImages_.find(key);
+        if (it != fxImages_.end()) img = it->second;
+    }
+    gpu::TexturePtr tex;
+    if (img) {
+        gpu::TextureDesc d;
+        d.width = img->width;
+        d.height = img->height;
+        d.format = gpu::TexFormat::RGBA8;
+        d.renderTarget = false;
+        tex = device_.createTexture(d);
+        if (tex) device_.upload(*tex, img->rgba.data(), img->width * 4);
+    }
+    fxTextures_[key] = tex;  // nullptr remembered: no preview for this one
+    void* view = tex ? device_.nativeView(*tex) : nullptr;
+    return view ? reinterpret_cast<ImTextureID>(view) : ImTextureID_Invalid;
+}
+
+bool AssetService::effectPreviewsReady() const {
+    std::lock_guard lk(mutex_);
+    return fxReady_;
 }
 
 void AssetService::endFrame() {

@@ -12,7 +12,11 @@
 #include "core/strings.h"
 #include "tests/test_support.h"
 #include "ui/app.h"
+#include "ui/effect_previews.h"
 #include "ui/headless.h"
+
+#include <cstring>
+#include <stb_image_write.h>
 
 using namespace avc;
 using namespace avc::ui;
@@ -61,6 +65,27 @@ int main(int argc, char** argv) {
             }
         };
         shot("01_welcome.png", 6);
+        {
+            // Contact sheet of every effect / transition preview tile.
+            const auto previews = renderEffectPreviews(192, 108);
+            const int cols = 6, tw = 192, th = 108, pad = 4;
+            const int rows = static_cast<int>((previews.size() + cols - 1) / cols);
+            std::vector<uint8_t> sheet(static_cast<size_t>((tw + pad) * cols) * static_cast<size_t>((th + pad) * rows) * 4, 20);
+            const int sw = (tw + pad) * cols;
+            int i = 0;
+            for (const auto& [key, img] : previews) {
+                const int ox = (i % cols) * (tw + pad), oy = (i / cols) * (th + pad);
+                ++i;
+                if (!img) continue;
+                for (int y = 0; y < th; ++y)
+                    std::memcpy(&sheet[(static_cast<size_t>(oy + y) * static_cast<size_t>(sw) + static_cast<size_t>(ox)) * 4],
+                                &img->rgba[static_cast<size_t>(y) * static_cast<size_t>(tw) * 4], static_cast<size_t>(tw) * 4);
+            }
+            const std::string p = pathToUtf8(out / "00_effect_previews.png");
+            stbi_write_png(p.c_str(), sw, (th + pad) * rows, 4, sheet.data(), sw * 4);
+            int n = 0;
+            for (const auto& [key, img] : previews) std::printf("%2d %s%s\n", n++, key.c_str(), img ? "" : " (icon)");
+        }
 
         const std::string video = test::testMedia("av_1080p30.mp4");
         const std::string music = test::testMedia("beats_120bpm.wav");
@@ -86,6 +111,9 @@ int main(int argc, char** argv) {
         shot("02_edit.png");
         for (const char* page : {"audio", "text", "effects", "transitions", "ai"}) {
             app.openLibrary(page);
+            host.frames(2);
+            if (std::string(page) == "effects" || std::string(page) == "transitions")
+                runUntil(host, [&] { return app.assets().effectPreviewsReady(); }, 30);
             shot((std::string("04_library_") + page + ".png").c_str(), 6);
         }
         app.openLibrary("media");

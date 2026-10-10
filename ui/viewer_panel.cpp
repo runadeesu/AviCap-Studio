@@ -316,10 +316,7 @@ void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
         const bool pressed = ImGui::InvisibleButton(id, ImVec2(bw, bh));
         const bool hov = ImGui::IsItemHovered();
         if (primary) {
-            dl->AddRectFilled(p, p + ImVec2(bw, bh), pal::kAccentPressed, 12.0f);
-            dl->AddRectFilledMultiColor(p + ImVec2(6, 0), p + ImVec2(bw - 6, bh), hov ? pal::kAccentHover : pal::kAccent,
-                                        pal::mix(pal::kAccent, pal::kAccent2, 0.55f), pal::mix(pal::kAccentPressed, pal::kAccent2, 0.45f),
-                                        pal::kAccentPressed);
+            gradientRect(dl, p, p + ImVec2(bw, bh), hov ? pal::kAccentHover : pal::kAccent, pal::mix(pal::kAccentPressed, pal::kAccent2, 0.5f), 12.0f);
             dl->AddRectFilled(p, p + ImVec2(bw, bh), IM_COL32(255, 255, 255, hov ? 18 : 0), 12.0f);
         } else {
             dl->AddRectFilled(p, p + ImVec2(bw, bh), hov ? pal::kPanelHover : pal::kPanelRaised, 12.0f);

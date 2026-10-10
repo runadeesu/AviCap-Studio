@@ -253,10 +253,29 @@ void TimelinePanel::draw(App& app) {
         }
     }
     if (seq->clipCount() == 0 && !preview_) {
-        const char* hint = tr("Drag media here from the Media panel (Ctrl+drop inserts). Double-click media to add it at the playhead.");
-        const ImVec2 ts = ImGui::CalcTextSize(hint);
+        // Empty state: a dashed drop band in the middle of the tracks.
+        const float fs = ImGui::GetFontSize();
+        const float bandH = std::min(fs * 4.2f, (areaMax_.y - areaMin_.y) - 16);
         const ImVec2 c((areaMin_.x + areaMax_.x) * 0.5f, (areaMin_.y + areaMax_.y) * 0.5f);
-        dl->AddText(ImVec2(std::max(areaMin_.x + 8, c.x - ts.x * 0.5f), c.y - ts.y * 0.5f), pal::kTextFaint, hint);
+        const ImVec2 a(areaMin_.x + 16, c.y - bandH * 0.5f), b(areaMax_.x - 16, c.y + bandH * 0.5f);
+        if (bandH > fs * 2 && b.x - a.x > fs * 10) {
+            dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 5), pal::kControlRadius + 2);
+            dashedRect(dl, a, b, IM_COL32(255, 255, 255, 46), pal::kControlRadius + 2);
+            const char* title = tr("Drag media here to start editing");
+            const char* hint = tr("Drag media here from the Media panel (Ctrl+drop inserts). Double-click media to add it at the playhead.");
+            ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+            const ImVec2 ts = bold->CalcTextSizeA(fs, FLT_MAX, 0.0f, title);
+            const ImVec2 hs = ImGui::GetFont()->CalcTextSizeA(fs * 0.85f, FLT_MAX, 0.0f, hint);
+            const float disc = fs * 2.0f;
+            const float blockW = disc + 12 + std::max(ts.x, hs.x);
+            const float x0 = std::max(a.x + 12, c.x - blockW * 0.5f);
+            gradientRect(dl, ImVec2(x0, c.y - disc * 0.5f), ImVec2(x0 + disc, c.y + disc * 0.5f), pal::kAccentHover, pal::kAccent2, disc * 0.5f);
+            drawIcon(dl, Icon::Plus, ImVec2(x0 + disc * 0.5f, c.y), fs * 0.95f, IM_COL32(255, 255, 255, 255));
+            dl->PushClipRect(a, b, true);
+            dl->AddText(bold, fs, ImVec2(x0 + disc + 12, c.y - ts.y - 1), pal::kText, title);
+            dl->AddText(ImGui::GetFont(), fs * 0.85f, ImVec2(x0 + disc + 12, c.y + 2), pal::kTextMuted, hint);
+            dl->PopClipRect();
+        }
     }
 
     // Marquee

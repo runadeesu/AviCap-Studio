@@ -118,11 +118,11 @@ void MediaPanel::draw(App& app) {
     if (items.empty()) {
         ImGui::Spacing();
         if (app.project().media.empty()) {
-            const float w = std::min(ImGui::GetContentRegionAvail().x, ImGui::GetFontSize() * 16);
-            if (ImGui::Button(tr("+ Import Media"), ImVec2(w, ImGui::GetFrameHeight() * 2.0f))) app.importDialog();
-            ImGui::Spacing();
-            ImGui::TextWrapped("%s", tr("Drop video, audio or image files here, or click + to import."));
-            hintText(tr("Supported: MP4, MOV, MKV, WebM, AVI, MP3, WAV, AAC, FLAC, PNG, JPEG and more."));
+            const ImVec2 avail = ImGui::GetContentRegionAvail();
+            const ImVec2 size(avail.x, std::max(ImGui::GetFontSize() * 12.0f, avail.y - 4));
+            if (dropZone("##dropzone", size, Icon::Plus, tr("Import Media"), tr("Click here, or drop video, audio and image files"),
+                         tr("Supported: MP4, MOV, MKV, WebM, AVI, MP3, WAV, AAC, FLAC, PNG, JPEG and more.")))
+                app.importDialog();
         } else {
             ImGui::TextWrapped("%s", tr("No media matches the filter."));
         }
