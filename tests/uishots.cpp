@@ -82,6 +82,7 @@ int main(int argc, char** argv) {
         // Let thumbnails, waveforms and the preview frame arrive.
         runUntil(host, [&] { return app.preview().latest().texture != nullptr && !app.animating(); }, 40);
         host.frames(10);
+        app.notifications().clear();
         shot("02_edit.png");
         for (const char* page : {"audio", "text", "effects", "transitions", "ai"}) {
             app.openLibrary(page);
@@ -95,6 +96,36 @@ int main(int argc, char** argv) {
                 break;
             }
         shot("05_selected.png", 6);
+        auto selectKind = [&](ClipKind kind, TrackKind track) {
+            for (const auto& t : app.sequence()->tracks)
+                for (const auto& c : t->clips)
+                    if (c->kind == kind && t->kind == track) {
+                        app.selectClip(c->id, false, false);
+                        return;
+                    }
+        };
+        selectKind(ClipKind::Text, TrackKind::Video);
+        shot("06_text_clip.png", 6);
+        // The music clip (last audio track) has no linked video.
+        for (auto it = app.sequence()->tracks.rbegin(); it != app.sequence()->tracks.rend(); ++it)
+            if ((*it)->kind == TrackKind::Audio && !(*it)->clips.empty()) {
+                app.selectClip((*it)->clips.front()->id, false, false);
+                break;
+            }
+        shot("07_audio_clip.png", 6);
+        app.selection.clear();
+        shot("08_sequence.png", 6);
+        for (const char* accent : {"cyan", "blue", "pink"}) {
+            app.settings().ui.accent = accent;
+            selectKind(ClipKind::Text, TrackKind::Video);
+            shot((std::string("09_accent_") + accent + ".png").c_str(), 6);
+        }
+        app.settings().ui.accent = "violet";
+        app.selection.clear();
+        app.ui().showSettings = true;
+        app.ui().settingsTab = "Interface";
+        shot("10_settings.png", 6);
+        app.ui().showSettings = false;
 
         for (const char* ws : {"color", "audio", "export"}) {
             app.setWorkspace(ws);

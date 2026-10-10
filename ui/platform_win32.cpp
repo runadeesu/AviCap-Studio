@@ -324,7 +324,8 @@ int runStudio(const StudioLaunch& launch, const FrameDriver& driver) {
     auto uiScale = [&] { return (app->settings().ui.uiScale > 0 ? app->settings().ui.uiScale : 1.0f) * dpi; };
     float appliedScale = uiScale();
     bool appliedContrast = app->settings().ui.highContrast;
-    applyTheme(appliedScale, appliedContrast);
+    std::string appliedAccent = app->settings().ui.accent;
+    applyTheme(appliedScale, appliedContrast, appliedAccent);
     if (host.viewports) {
         ImGuiStyle& st = ImGui::GetStyle();
         st.WindowRounding = 0.0f;
@@ -388,10 +389,12 @@ int runStudio(const StudioLaunch& launch, const FrameDriver& driver) {
 
         // Theme follows settings / DPI changes.
         dpi = ImGui_ImplWin32_GetDpiScaleForHwnd(hwnd);
-        if (std::abs(uiScale() - appliedScale) > 0.01f || appliedContrast != app->settings().ui.highContrast) {
+        if (std::abs(uiScale() - appliedScale) > 0.01f || appliedContrast != app->settings().ui.highContrast ||
+            appliedAccent != app->settings().ui.accent) {
             appliedScale = uiScale();
             appliedContrast = app->settings().ui.highContrast;
-            applyTheme(appliedScale, appliedContrast);
+            appliedAccent = app->settings().ui.accent;
+            applyTheme(appliedScale, appliedContrast, appliedAccent);
         }
 
         app->tick();

@@ -169,8 +169,13 @@ private:
     void drawEffects(App& app, const Sequence& seq, const Clip& clip, bool audio);
     void drawTextSection(App& app, const Clip& clip);
     void drawSequence(App& app, const Sequence& seq);
+    void drawClipHeader(App& app, const Sequence& seq, const Clip& clip);
+    void drawSpeed(App& app, const Clip& clip);
+    void drawTransitions(App& app, const Sequence& seq, const Clip& clip);
     std::string textBuf_;
     ClipId textFor_ = kInvalidId;
+    int page_ = -1;  // InspectorPage of the last chosen tab (kept across clips when available)
+    bool speedRipple_ = true;
 };
 
 class EffectsPanel {
@@ -303,6 +308,7 @@ private:
     AppSettings working_;
     bool loaded_ = false;
     std::string capturing_;  // action id waiting for a key chord
+    std::string page_;       // selected category
     char search_[96] = {};
     std::vector<audio::AudioDeviceInfo> devices_;
 };

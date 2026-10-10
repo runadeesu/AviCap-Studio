@@ -241,7 +241,7 @@ void SoundsPanel::drawWebSounds(App& app) {
     }
     ImGui::SameLine();
     bool watch = app.settings().sounds.watchDownloads;
-    if (ImGui::Checkbox(tr("Show new downloads"), &watch)) {
+    if (checkbox(tr("Show new downloads"), &watch)) {
         app.settings().sounds.watchDownloads = watch;
         app.saveSettings();
         lastDownloadScan_ = -100;

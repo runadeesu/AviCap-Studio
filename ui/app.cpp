@@ -1121,6 +1121,23 @@ void App::setLoop(bool on) {
 
 // ------------------------------------------------------------------ editing
 
+Status App::setSequenceAspect(int num, int den) {
+    const Sequence* seq = sequence();
+    if (!seq || num <= 0 || den <= 0) return Status::error("invalid aspect ratio");
+    const int shortSide = std::min(seq->width, seq->height);
+    int w = shortSide, h = shortSide;
+    if (num > den) w = static_cast<int>(std::lround(static_cast<double>(shortSide) * num / den));
+    else if (den > num) h = static_cast<int>(std::lround(static_cast<double>(shortSide) * den / num));
+    w = std::clamp(w & ~1, 16, 16384);
+    h = std::clamp(h & ~1, 16, 16384);
+    if (w == seq->width && h == seq->height) return Status::ok();
+    return editSequence("Aspect Ratio", [&](SequenceEditor& e) {
+        e.props().width = w;
+        e.props().height = h;
+        return Status::ok();
+    });
+}
+
 Status App::editSequence(const std::string& label, const std::function<Status(SequenceEditor&)>& fn, const EditOptions& opt) {
     if (!sequence()) return Status::error("No sequence");
     Status st = doc_->editSequence(label, sequenceId(), fn, opt);

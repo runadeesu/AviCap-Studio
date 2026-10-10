@@ -52,6 +52,7 @@ private:
     std::unique_ptr<MainWindow> window_;
     int lastDrawCmds_ = 0;
     int lastVertices_ = 0;
+    std::string accent_;
     int nextTexId_ = 1;
     std::map<ImTextureID, ImTextureData*> fontTextures_;
 };

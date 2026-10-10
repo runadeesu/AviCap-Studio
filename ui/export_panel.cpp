@@ -167,7 +167,7 @@ void ExportPanel::drawSettings(App& app) {
         ImGui::TextDisabled("%s %s", tr("Will use:"), chosen->displayName.c_str());
     }
     ImGui::SetCursorPosX(labelW);
-    ImGui::Checkbox(tr("Prefer hardware encoder"), &settings_.preferHardware);
+    checkbox(tr("Prefer hardware encoder"), &settings_.preferHardware);
 
     label(tr("Resolution"));
     const int w = settings_.width > 0 ? settings_.width : seq->width;
@@ -220,7 +220,7 @@ void ExportPanel::drawSettings(App& app) {
 
     ImGui::SeparatorText(tr("Audio"));
     ImGui::SetCursorPosX(labelW);
-    ImGui::Checkbox(tr("Include audio"), &settings_.includeAudio);
+    checkbox(tr("Include audio"), &settings_.includeAudio);
     if (settings_.includeAudio) {
         label(tr("Audio Codec"));
         if (ImGui::BeginCombo("##acodec", enc::audioCodecName(settings_.audioCodec))) {
@@ -242,12 +242,12 @@ void ExportPanel::drawSettings(App& app) {
     label(tr("Range"));
     ImGui::Combo("##range", &rangeMode_, ranges, seq->workArea ? 2 : 1);
     ImGui::SetCursorPosX(labelW);
-    ImGui::Checkbox(tr("Verify the file after export"), &settings_.verify);
+    checkbox(tr("Verify the file after export"), &settings_.verify);
     bool hasSubs = false;
     for (const auto& t : seq->tracks) hasSubs |= t->kind == TrackKind::Subtitle && !t->clips.empty();
     if (hasSubs) {
         ImGui::SetCursorPosX(labelW);
-        ImGui::Checkbox(tr("Also save the subtitles as a .srt file"), &sidecarSrt_);
+        checkbox(tr("Also save the subtitles as a .srt file"), &sidecarSrt_);
         tooltip(tr("Subtitles are burned into the video and also written next to it, for YouTube or other players."));
     }
 

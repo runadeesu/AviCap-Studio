@@ -1,6 +1,7 @@
 #include "ui/widgets.h"
 
 #include <algorithm>
+#include <iterator>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -532,6 +533,217 @@ bool chipButton(const char* label, bool active) {
     return pressed;
 }
 
+bool checkbox(const char* label, bool* v) {
+    ImGui::PushID(label);
+    const float fs = ImGui::GetFontSize();
+    const float box = std::round(fs * 1.0f);
+    const float h = ImGui::GetFrameHeight();
+    const char* end = ImGui::FindRenderedTextEnd(label);
+    const ImVec2 ts = ImGui::CalcTextSize(label, end);
+    const float gap = ImGui::GetStyle().ItemInnerSpacing.x + 2.0f;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton("##cb", ImVec2(box + (ts.x > 0 ? gap + ts.x : 0.0f), h));
+    const bool hovered = ImGui::IsItemHovered();
+    if (pressed) {
+        *v = !*v;
+        ImGui::MarkItemEdited(ImGui::GetItemID());
+    }
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a(pos.x, pos.y + std::round((h - box) * 0.5f)), b = a + ImVec2(box, box);
+    if (*v) {
+        dl->AddRectFilled(a, b, ImGui::GetColorU32(hovered ? pal::kAccentHover : pal::kAccent), 4.0f);
+        dl->PathLineTo(a + ImVec2(box * 0.25f, box * 0.52f));
+        dl->PathLineTo(a + ImVec2(box * 0.43f, box * 0.70f));
+        dl->PathLineTo(a + ImVec2(box * 0.76f, box * 0.32f));
+        dl->PathStroke(ImGui::GetColorU32(IM_COL32(255, 255, 255, 255)), std::max(1.6f, box * 0.13f));
+    } else {
+        dl->AddRectFilled(a, b, ImGui::GetColorU32(hovered ? pal::kPanelHover : pal::kPanelRaised), 4.0f);
+        dl->AddRect(a, b, ImGui::GetColorU32(IM_COL32(255, 255, 255, hovered ? 120 : 64)), 4.0f, 1.4f);
+    }
+    if (ts.x > 0) dl->AddText(ImVec2(b.x + gap, pos.y + (h - ts.y) * 0.5f), ImGui::GetColorU32(ImGuiCol_Text), label, end);
+    ImGui::PopID();
+    return pressed;
+}
+
+bool toggleSwitch(const char* id, bool* v, const char* tip) {
+    const float fs = ImGui::GetFontSize();
+    const float th = std::round(fs * 1.05f), tw = std::round(th * 1.8f);
+    const float h = ImGui::GetFrameHeight();
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton(id, ImVec2(tw, h));
+    const bool hovered = ImGui::IsItemHovered();
+    if (pressed) {
+        *v = !*v;
+        ImGui::MarkItemEdited(ImGui::GetItemID());
+    }
+    if (tip) tooltip(tip);
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    const ImVec2 a(pos.x, pos.y + std::round((h - th) * 0.5f)), b = a + ImVec2(tw, th);
+    const ImU32 track = *v ? (hovered ? pal::kAccentHover : pal::kAccent) : IM_COL32(255, 255, 255, hovered ? 60 : 38);
+    dl->AddRectFilled(a, b, ImGui::GetColorU32(track), th * 0.5f);
+    const float r = th * 0.5f - 2.5f;
+    const ImVec2 knob(*v ? b.x - th * 0.5f : a.x + th * 0.5f, a.y + th * 0.5f);
+    dl->AddCircleFilled(knob + ImVec2(0, 1), r, ImGui::GetColorU32(IM_COL32(0, 0, 0, 60)));
+    dl->AddCircleFilled(knob, r, ImGui::GetColorU32(IM_COL32(255, 255, 255, 255)));
+    return pressed;
+}
+
+bool underlineTabs(const char* id, const char* const* labels, int count, int* current) {
+    ImGui::PushID(id);
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const float h = ImGui::GetFrameHeight() + 2.0f;
+    ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+    float size = ImGui::GetFontSize();
+    float gap = size * 1.25f;
+    auto measure = [&] {
+        float total = 0;
+        for (int i = 0; i < count; ++i) total += bold->CalcTextSizeA(size, FLT_MAX, 0.0f, labels[i], ImGui::FindRenderedTextEnd(labels[i])).x;
+        return total + gap * static_cast<float>(count - 1);
+    };
+    // Squeeze the gaps first, then the text, so all tabs stay visible.
+    if (float total = measure(); total > avail) {
+        gap = std::max(size * 0.6f, gap - (total - avail) / std::max(1, count - 1));
+        if (total = measure(); total > avail) size = std::max(ImGui::GetFontSize() * 0.75f, size * avail / total);
+    }
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddLine(ImVec2(pos.x, pos.y + h - 0.5f), ImVec2(pos.x + avail, pos.y + h - 0.5f), pal::kStroke);
+    bool changed = false;
+    float x = pos.x;
+    for (int i = 0; i < count; ++i) {
+        const char* end = ImGui::FindRenderedTextEnd(labels[i]);
+        const ImVec2 ts = bold->CalcTextSizeA(size, FLT_MAX, 0.0f, labels[i], end);
+        ImGui::SetCursorScreenPos(ImVec2(x - gap * 0.5f + (i == 0 ? gap * 0.5f : 0.0f), pos.y));
+        ImGui::PushID(i);
+        const bool pressed = ImGui::InvisibleButton("##tab", ImVec2(ts.x + (i == 0 ? gap * 0.5f : gap), h));
+        const bool hovered = ImGui::IsItemHovered();
+        ImGui::PopID();
+        const bool sel = *current == i;
+        dl->AddText(sel ? bold : ImGui::GetFont(), size, ImVec2(x, pos.y + (h - ts.y) * 0.5f - 1),
+                    sel ? pal::kText : hovered ? pal::kText : pal::kTextMuted, labels[i], end);
+        if (sel) dl->AddRectFilled(ImVec2(x, pos.y + h - 2.5f), ImVec2(x + ts.x, pos.y + h), pal::kAccent, 1.5f);
+        if (pressed && !sel) {
+            *current = i;
+            changed = true;
+        }
+        x += ts.x + gap;
+    }
+    ImGui::SetCursorScreenPos(pos);
+    ImGui::Dummy(ImVec2(avail, h));
+    ImGui::PopID();
+    return changed;
+}
+
+bool iconTab(const char* id, Icon icon, const char* label, bool active, ImVec2 size) {
+    const float fs = ImGui::GetFontSize();
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton(id, size);
+    const bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    if (hovered && !active) dl->AddRectFilled(pos + ImVec2(2, 3), pos + size - ImVec2(2, 5), pal::kPanelHover, pal::kControlRadius);
+    const ImU32 fg = active ? pal::kAccentText : hovered ? pal::kText : pal::kTextMuted;
+    drawIcon(dl, icon, ImVec2(pos.x + size.x * 0.5f, pos.y + size.y * 0.36f), fs * 1.12f, fg);
+    float small = fs * 0.76f;
+    ImFont* font = active && boldFont() ? boldFont() : ImGui::GetFont();
+    ImVec2 ts = font->CalcTextSizeA(small, FLT_MAX, 0.0f, label);
+    if (ts.x > size.x - 4) {
+        small *= (size.x - 4) / ts.x;
+        ts = font->CalcTextSizeA(small, FLT_MAX, 0.0f, label);
+    }
+    dl->AddText(font, small, ImVec2(pos.x + (size.x - ts.x) * 0.5f, pos.y + size.y * 0.64f), fg, label);
+    if (active) {
+        const float iw = std::min(size.x - 12, fs * 1.6f);
+        dl->AddRectFilled(ImVec2(pos.x + (size.x - iw) * 0.5f, pos.y + size.y - 3), ImVec2(pos.x + (size.x + iw) * 0.5f, pos.y + size.y),
+                          pal::kAccent, 1.5f);
+    }
+    if (hovered) tooltip(label);
+    return pressed;
+}
+
+bool navItem(const char* id, Icon icon, const char* label, bool active) {
+    const float fs = ImGui::GetFontSize();
+    const float w = ImGui::GetContentRegionAvail().x;
+    const float h = fs * 2.1f;
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const bool pressed = ImGui::InvisibleButton(id, ImVec2(w, h));
+    const bool hovered = ImGui::IsItemHovered();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    if (active) {
+        dl->AddRectFilled(pos, pos + ImVec2(w, h), pal::kPanelActive, pal::kControlRadius);
+        dl->AddRectFilled(ImVec2(pos.x, pos.y + h * 0.28f), ImVec2(pos.x + 3, pos.y + h * 0.72f), pal::kAccent, 1.5f);
+    } else if (hovered) {
+        dl->AddRectFilled(pos, pos + ImVec2(w, h), pal::kPanelHover, pal::kControlRadius);
+    }
+    const ImU32 fg = active ? pal::kText : hovered ? pal::kText : pal::kTextMuted;
+    drawIcon(dl, icon, ImVec2(pos.x + fs * 1.2f, pos.y + h * 0.5f), fs * 0.95f, active ? pal::kAccentText : fg);
+    dl->PushClipRect(pos, pos + ImVec2(w - 4, h), true);
+    dl->AddText(ImVec2(pos.x + fs * 2.3f, pos.y + (h - fs) * 0.5f), fg, label);
+    dl->PopClipRect();
+    if (hovered) tooltip(label);
+    return pressed;
+}
+
+void floatingWindowDecor() {
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    if (!w || w->DockIsActive || (w->Flags & ImGuiWindowFlags_ChildWindow)) return;
+    ImDrawList* dl = w->DrawList;
+    const float r = ImGui::GetStyle().WindowRounding;
+    const ImVec2 a = w->Pos, b = w->Pos + w->Size;
+    dl->PushClipRectFullScreen();
+    for (int i = 1; i <= 14; ++i) {
+        const float k = static_cast<float>(i);
+        const float t = 1.0f - k / 15.0f;
+        dl->AddRect(a - ImVec2(k, k - 2), b + ImVec2(k, k + 2), IM_COL32(0, 0, 0, static_cast<int>(70 * t * t)), r + k, 1.6f);
+    }
+    dl->AddRect(a, b, IM_COL32(255, 255, 255, 26), r, 1.0f);
+    dl->PopClipRect();
+}
+
+const AspectPreset* aspectPresets(int* count) {
+    static constexpr AspectPreset kPresets[] = {
+        {"16:9", 16, 9, trNoop("Landscape (YouTube, TV)")}, {"9:16", 9, 16, trNoop("Vertical (Shorts, TikTok, Reels)")},
+        {"1:1", 1, 1, trNoop("Square")},                    {"4:5", 4, 5, trNoop("Portrait (Instagram feed)")},
+        {"21:9", 21, 9, trNoop("Cinema widescreen")},
+    };
+    if (count) *count = static_cast<int>(std::size(kPresets));
+    return kPresets;
+}
+
+bool accentSwatches(const char* id, std::string& accent) {
+    ImGui::PushID(id);
+    int count = 0;
+    const pal::AccentPreset* presets = pal::accentPresets(&count);
+    const float d = ImGui::GetFrameHeight();
+    bool changed = false;
+    for (int i = 0; i < count; ++i) {
+        if (i > 0) ImGui::SameLine(0, 8);
+        const ImVec2 pos = ImGui::GetCursorScreenPos();
+        ImGui::PushID(i);
+        const bool pressed = ImGui::InvisibleButton("##sw", ImVec2(d, d));
+        const bool hovered = ImGui::IsItemHovered();
+        ImGui::PopID();
+        tooltip(tr(presets[i].label));
+        const bool sel = accent == presets[i].id;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        const ImVec2 c = pos + ImVec2(d * 0.5f, d * 0.5f);
+        if (sel || hovered) dl->AddCircle(c, d * 0.5f - 0.5f, sel ? pal::kText : IM_COL32(255, 255, 255, 90), 0, 2.0f);
+        dl->AddCircleFilled(c, d * 0.5f - 4.0f, presets[i].swatch);
+        if (sel) {
+            const float s = d * 0.16f;
+            dl->PathLineTo(c + ImVec2(-s, 0));
+            dl->PathLineTo(c + ImVec2(-s * 0.3f, s * 0.75f));
+            dl->PathLineTo(c + ImVec2(s * 1.05f, -s * 0.7f));
+            dl->PathStroke(IM_COL32(255, 255, 255, 255), 2.0f);
+        }
+        if (pressed && !sel) {
+            accent = presets[i].id;
+            changed = true;
+        }
+    }
+    ImGui::PopID();
+    return changed;
+}
+
 void headingText(const char* text, float scale) {
     ImFont* bold = boldFont();
     ImGui::PushFont(bold ? bold : ImGui::GetFont(), ImGui::GetStyle().FontSizeBase * scale);
@@ -751,7 +963,44 @@ void levelMeter(const char* id, const audio::Meter& m, ImVec2 size, bool vertica
 // ------------------------------------------------------------------ parameters
 
 bool sectionHeader(const char* label, bool defaultOpen) {
-    return ImGui::CollapsingHeader(label, defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : 0);
+    // Flat header: bold title and a chevron, separated by a hairline (the
+    // open state lives in the window storage, like a tree node).
+    ImGuiStorage* storage = ImGui::GetStateStorage();
+    const ImGuiID key = ImGui::GetID(label);
+    bool open = storage->GetBool(key, defaultOpen);
+    const float fs = ImGui::GetFontSize();
+    const float h = ImGui::GetFrameHeight() + 4.0f;
+    ImGui::Dummy(ImVec2(0, 1));
+    const ImVec2 pos = ImGui::GetCursorScreenPos();
+    const float w = ImGui::GetContentRegionAvail().x;
+    ImGui::PushID(label);
+    const bool pressed = ImGui::InvisibleButton("##section", ImVec2(w, h));
+    ImGui::PopID();
+    const bool hovered = ImGui::IsItemHovered();
+    if (pressed) {
+        open = !open;
+        storage->SetBool(key, open);
+    }
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddLine(ImVec2(pos.x, pos.y), ImVec2(pos.x + w, pos.y), pal::kStroke);
+    if (hovered) dl->AddRectFilled(pos + ImVec2(-4, 2), pos + ImVec2(w + 4, h - 1), IM_COL32(255, 255, 255, 8), pal::kControlRadius);
+    ImFont* bold = boldFont() ? boldFont() : ImGui::GetFont();
+    const char* end = ImGui::FindRenderedTextEnd(label);
+    dl->AddText(bold, fs * 0.98f, ImVec2(pos.x + 2, pos.y + (h - fs) * 0.5f + 1), open || hovered ? pal::kText : pal::kTextMuted, label, end);
+    const ImVec2 c(pos.x + w - fs * 0.55f, pos.y + h * 0.5f + 1);
+    const float s = fs * 0.24f;
+    const ImU32 cc = hovered ? pal::kText : pal::kTextMuted;
+    if (open) {
+        dl->PathLineTo(c + ImVec2(-s, -s * 0.5f));
+        dl->PathLineTo(c + ImVec2(0, s * 0.5f));
+        dl->PathLineTo(c + ImVec2(s, -s * 0.5f));
+    } else {
+        dl->PathLineTo(c + ImVec2(-s * 0.5f, -s));
+        dl->PathLineTo(c + ImVec2(s * 0.5f, 0));
+        dl->PathLineTo(c + ImVec2(-s * 0.5f, s));
+    }
+    dl->PathStroke(cc, 1.6f);
+    return open;
 }
 
 ParamEdit paramRow(const ParamDef& def, const AnimatedParam* param, Time local, bool showKeyframes) {
@@ -798,7 +1047,7 @@ ParamEdit paramRow(const ParamDef& def, const AnimatedParam* param, Time local, 
     }
     case ParamType::Bool: {
         bool b = v[0] >= 0.5f;
-        edited = ImGui::Checkbox("##v", &b);
+        edited = checkbox("##v", &b);
         v[0] = b ? 1.0f : 0.0f;
         break;
     }

@@ -63,6 +63,29 @@ bool chipButton(const char* label, bool active);
 ImFont* boldFont();
 // Section heading in the bold UI font.
 void headingText(const char* text, float scale = 1.0f);
+// Modern replacements for ImGui::Checkbox (accent-filled box with a check
+// mark) and an on/off switch for enabling whole features.
+bool checkbox(const char* label, bool* v);
+bool toggleSwitch(const char* id, bool* v, const char* tooltip = nullptr);
+// Text tabs with an accent underline (inspector pages).
+bool underlineTabs(const char* id, const char* const* labels, int count, int* current);
+// Icon-over-label tab (library page bar); the active one is accent coloured.
+bool iconTab(const char* id, Icon icon, const char* label, bool active, ImVec2 size);
+// Frame shapes offered in the viewer and the project settings.
+struct AspectPreset {
+    const char* label;  // "16:9"
+    int num, den;
+    const char* hint;  // English (tr)
+    [[nodiscard]] bool matches(int w, int h) const { return static_cast<long long>(w) * den == static_cast<long long>(h) * num; }
+};
+const AspectPreset* aspectPresets(int* count);
+// Full-width sidebar entry (icon + label) used by the settings categories.
+bool navItem(const char* id, Icon icon, const char* label, bool active);
+// Soft drop shadow and hairline border around a floating (undocked) window;
+// call right after Begin().
+void floatingWindowDecor();
+// Row of round accent-colour swatches; `accent` holds the preset id.
+bool accentSwatches(const char* id, std::string& accent);
 // Rounded "card" background behind the next items (call endCard() after).
 void beginCard(const char* id, ImVec2 size = ImVec2(0, 0), ImU32 bg = pal::kPanelRaised);
 void endCard();

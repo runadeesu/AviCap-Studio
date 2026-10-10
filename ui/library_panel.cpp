@@ -1,10 +1,11 @@
-// Library: one place to add content. A vertical icon rail switches between
+// Library: one place to add content. A tab bar along the top switches between
 // media, audio (BGM/SFX), text styles, effects, transitions and the AI tools,
 // the way modern editors present their asset browser.
 
 #include <algorithm>
 #include <cstdio>
 #include <functional>
+#include <iterator>
 
 #include "core/i18n.h"
 #include "ui/panels.h"
@@ -164,26 +165,25 @@ const std::vector<TextPreset>& textPresets() {
 void LibraryPanel::draw(App& app) {
     UiState& ui = app.ui();
     const float fs = ImGui::GetFontSize();
-    const float railW = fs * 4.8f;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 6));
-    ImGui::BeginChild("##rail", ImVec2(railW, 0), ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoScrollbar);
-    for (const Page& p : kPages) {
-        if (railButton(p.id, p.icon, tr(p.label), ui.libraryPage == p.id, railW)) ui.libraryPage = p.id;
-        ImGui::Dummy(ImVec2(0, 2));
+    // Page bar along the top (icon over label), like the asset browsers of
+    // CapCut and other modern editors; the page fills the rest of the panel.
+    const int n = static_cast<int>(std::size(kPages));
+    const float pad = 6.0f;
+    const float avail = ImGui::GetContentRegionAvail().x;
+    const float tabW = std::max(fs * 2.6f, (avail - pad * 2) / static_cast<float>(n));
+    const float tabH = fs * 3.3f;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + pad);
+    for (int i = 0; i < n; ++i) {
+        const Page& p = kPages[i];
+        if (i > 0) ImGui::SameLine(0, 0);
+        if (iconTab(p.id, p.icon, tr(p.label), ui.libraryPage == p.id, ImVec2(tabW, tabH))) ui.libraryPage = p.id;
     }
-    ImGui::EndChild();
-    ImGui::PopStyleVar();
-    // Hairline between the rail and the page.
-    const ImVec2 rmax = ImGui::GetItemRectMax();
-    ImGui::GetWindowDrawList()->AddLine(ImVec2(rmax.x, ImGui::GetItemRectMin().y), ImVec2(rmax.x, rmax.y), pal::kStroke);
-    ImGui::SameLine(0, 0);
+    const ImVec2 wp = ImGui::GetWindowPos();
+    const float lineY = ImGui::GetItemRectMax().y;
+    ImGui::GetWindowDrawList()->AddLine(ImVec2(wp.x, lineY), ImVec2(wp.x + ImGui::GetWindowWidth(), lineY), pal::kStroke);
+    ImGui::Dummy(ImVec2(0, 2));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12, 8));
     ImGui::BeginChild("##page", ImVec2(0, 0), ImGuiChildFlags_AlwaysUseWindowPadding);
-    const char* title = "Media";
-    for (const Page& p : kPages)
-        if (ui.libraryPage == p.id) title = p.label;
-    headingText(tr(title), 1.12f);
-    ImGui::Spacing();
     if (ui.libraryPage == "media") media_.draw(app);
     else if (ui.libraryPage == "audio") drawAudio(app);
     else if (ui.libraryPage == "text") drawText(app);

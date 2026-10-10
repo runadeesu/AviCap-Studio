@@ -98,8 +98,8 @@ void MainWindow::header() {
     // Logo: rounded gradient tile with a play glyph.
     const float logo = std::round(barH * 0.58f);
     const ImVec2 lp(bar.Min.x + 14, bar.Min.y + std::round((barH - logo) * 0.5f));
-    dl->AddRectFilledMultiColor(lp, lp + ImVec2(logo, logo), IM_COL32(146, 108, 255, 255), IM_COL32(96, 120, 255, 255),
-                                IM_COL32(56, 160, 255, 255), IM_COL32(124, 92, 255, 255));
+    dl->AddRectFilledMultiColor(lp, lp + ImVec2(logo, logo), pal::kAccentHover, pal::mix(pal::kAccent, pal::kAccent2, 0.5f),
+                                pal::kAccent2, pal::kAccent);
     // Round the gradient's corners by masking them with the bar colour.
     const float r = logo * 0.28f;
     for (int k = 0; k < 4; ++k) {
@@ -299,7 +299,7 @@ void MainWindow::panelWindows() {
     panel(ui.showHistory, "History", "History", [&] { history_.draw(app_); });
     panel(ui.showMarkers, "Markers", "Markers", [&] { markers_.draw(app_); });
     panel(ui.showDiagnostics, "Diagnostics", "Diagnostics", [&] { diagnostics_.draw(app_); });
-    panel(ui.showMixer, "Audio Mixer", "Mixer", [&] { mixer_.draw(app_); });
+    panel(ui.showMixer, "Mixer", "Mixer", [&] { mixer_.draw(app_); });
     panel(ui.showTimeline, "Timeline", "Timeline", [&] { timeline_.draw(app_); },
           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
 }
@@ -434,6 +434,10 @@ void MainWindow::menus() {
             menuItem(id, ui.workspace == ws);
         }
         ImGui::Separator();
+        if (ImGui::BeginMenu(tr("Accent color"))) {
+            if (accentSwatches("##accentmenu", app_.settings().ui.accent)) app_.saveSettings();
+            ImGui::EndMenu();
+        }
         menuItem("view.commandPalette");
         menuItem("view.resetLayout");
         ImGui::EndMenu();
@@ -527,7 +531,9 @@ void MainWindow::shortcutSheet() {
     if (!ui.showShortcutSheet) return;
     ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * 34, ImGui::GetFontSize() * 30), ImGuiCond_FirstUseEver);
     const std::string title = std::string(tr("Shortcut List")) + "###shortcutsheet";
-    if (!ImGui::Begin(title.c_str(), &ui.showShortcutSheet, ImGuiWindowFlags_NoDocking)) {
+    const bool sheetVisible = ImGui::Begin(title.c_str(), &ui.showShortcutSheet, ImGuiWindowFlags_NoDocking);
+    floatingWindowDecor();
+    if (!sheetVisible) {
         ImGui::End();
         return;
     }
@@ -642,6 +648,7 @@ void MainWindow::unsavedDialog() {
     if (ui.unsavedPrompt && !ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
     const std::string title = std::string(tr("Unsaved Changes")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    floatingWindowDecor();
     ImGui::Text("%s \"%s\"?", tr("Save changes to"), app_.project().name.c_str());
     ImGui::Spacing();
     auto close = [&] {
@@ -680,6 +687,7 @@ void MainWindow::newProjectDialog() {
     }
     const std::string title = std::string(tr("New Project")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    floatingWindowDecor();
     struct Fmt {
         const char* name;
         int w, h;
@@ -717,6 +725,7 @@ void MainWindow::recoveryDialog() {
     if (ui.showRecovery && !app_.recoveryCandidates().empty() && !ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
     const std::string title = std::string(tr("Recover Unsaved Work")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    floatingWindowDecor();
     ImGui::TextWrapped("%s", tr("AviCap Studio did not close normally. The following projects have unsaved changes that can be recovered."));
     ImGui::Spacing();
     auto& list = app_.recoveryCandidates();
@@ -756,6 +765,7 @@ void MainWindow::relinkDialog() {
     if (ui.showRelink && !ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
     const std::string title = std::string(tr("Relink Media")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    floatingWindowDecor();
     ImGui::TextWrapped("%s", tr("These files could not be found. Locate one file and the others are searched next to it, or search a folder."));
     int shown = 0;
     for (const auto& m : app_.project().media) {
@@ -793,6 +803,7 @@ void MainWindow::speedDialog() {
     }
     const std::string title = std::string(tr("Speed/Duration")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    floatingWindowDecor();
     ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8);
     ImGui::InputFloat(tr("Speed (%)"), &speedPct_, 5.0f, 25.0f, "%.1f");
     speedPct_ = std::clamp(speedPct_, 1.0f, 10000.0f);
@@ -803,7 +814,7 @@ void MainWindow::speedDialog() {
         ImGui::SameLine();
     }
     ImGui::NewLine();
-    ImGui::Checkbox(tr("Ripple edit (shift following clips)"), &speedRipple_);
+    checkbox(tr("Ripple edit (shift following clips)"), &speedRipple_);
     if (const Clip* c = app_.primaryClip()) {
         const Time newDur = Time{static_cast<int64_t>(static_cast<double>(c->sourceDuration().ticks) / (speedPct_ / 100.0))};
         ImGui::TextDisabled("%s: %s", tr("New duration"), formatTime(newDur, app_.sequence()->frameRate).c_str());
@@ -827,6 +838,7 @@ void MainWindow::aboutDialog() {
     if (ui.showAbout && !ImGui::IsPopupOpen(id)) ImGui::OpenPopup(id);
     const std::string title = std::string(tr("About AviCap Studio")) + id;
     if (!ImGui::BeginPopupModal(title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize)) return;
+    floatingWindowDecor();
     ImGui::Text("AviCap Studio %s", AVICAP_VERSION_STRING);
     ImGui::TextDisabled("%s  |  %s", AVICAP_BUILD_DATE, AVICAP_COMPILER);
     ImGui::Spacing();

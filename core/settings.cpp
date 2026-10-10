@@ -38,6 +38,7 @@ std::string AppSettings::toJson() const {
                       {"timecodeStyle", ui.timecodeStyle},
                       {"showTooltips", ui.showTooltips},
                       {"highContrast", ui.highContrast},
+                      {"accent", ui.accent},
                       {"snapping", ui.snapping},
                       {"workspace", ui.workspace},
                       {"multiViewports", ui.multiViewports},
@@ -105,6 +106,7 @@ AppSettings AppSettings::fromJson(const std::string& text) {
         get(*it, "timecodeStyle", s.ui.timecodeStyle);
         get(*it, "showTooltips", s.ui.showTooltips);
         get(*it, "highContrast", s.ui.highContrast);
+        get(*it, "accent", s.ui.accent);
         get(*it, "snapping", s.ui.snapping);
         get(*it, "workspace", s.ui.workspace);
         get(*it, "multiViewports", s.ui.multiViewports);

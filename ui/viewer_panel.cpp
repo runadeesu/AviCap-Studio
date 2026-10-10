@@ -170,10 +170,11 @@ void ViewerPanel::drawTransport(App& app) {
     ImGui::SetCursorScreenPos(ImVec2(row.x, row.y + (rowH - s) * 0.5f));
     Time t = app.playhead();
     ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0, 0, 0, 0));
+    ImGui::PushStyleColor(ImGuiCol_Text, pal::kAccentText);
     ImGui::PushFont(boldFont() ? boldFont() : ImGui::GetFont(), ImGui::GetStyle().FontSizeBase * 1.05f);
     if (timeField("##tc", t, seq->frameRate, fs * 7.2f)) app.seek(t);
     ImGui::PopFont();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(2);
     tooltip(tr("Current time (type a timecode, frames or seconds)"));
     ImGui::SameLine(0, 2);
     ImGui::AlignTextToFramePadding();
@@ -212,41 +213,66 @@ void ViewerPanel::drawTransport(App& app) {
         dl->AddText(ImVec2(x + 4, row.y + (rowH - fs) * 0.5f), pal::kWarning, sp);
     }
 
-    // Right: quality, zoom, more options and full screen.
-    const float comboQ = fs * 4.6f, comboZ = fs * 5.4f;
-    const float rightW = comboQ + 4 + comboZ + 6 + small + 2 + small;
+    // Right: frame shape (16:9, 9:16...), view options and full screen.
+    int presetCount = 0;
+    const AspectPreset* presets = aspectPresets(&presetCount);
+    const char* ratioLabel = tr("Custom");
+    if (seq)
+        for (int i = 0; i < presetCount; ++i)
+            if (presets[i].matches(seq->width, seq->height)) ratioLabel = presets[i].label;
+    const float ratioW = std::max(ImGui::CalcTextSize(ratioLabel).x, ImGui::CalcTextSize("21:9").x) + fs * 2.2f;
+    const float rightW = ratioW + 6 + small + 2 + small;
     float rx = row.x + width - rightW;
-    if (rx > x + fs * 3) {
-        const float cy = row.y + (rowH - s) * 0.5f;
-        ImGui::SetCursorScreenPos(ImVec2(rx, cy));
-        ImGui::SetNextItemWidth(comboQ);
-        if (ImGui::BeginCombo("##quality", tr(qualityLabel(app.previewQuality)))) {
-            for (PreviewQuality q : {PreviewQuality::Auto, PreviewQuality::Full, PreviewQuality::Half, PreviewQuality::Quarter,
-                                     PreviewQuality::Eighth})
-                if (ImGui::Selectable(tr(qualityLabel(q)), q == app.previewQuality)) {
-                    app.previewQuality = q;
-                    app.settings().playback.previewQuality = previewQualityName(q);
-                }
-            ImGui::EndCombo();
-        }
-        tooltip(tr("Preview quality (Auto lowers resolution during playback when needed)"));
-        rx += comboQ + 4;
-        ImGui::SetCursorScreenPos(ImVec2(rx, cy));
-        ImGui::SetNextItemWidth(comboZ);
-        const char* zooms[] = {tr("Fit"), "25%", "50%", "75%", "100%", "150%", "200%", "400%"};
-        const int zv[] = {0, 25, 50, 75, 100, 150, 200, 400};
-        int zi = 0;
-        for (int i = 0; i < 8; ++i)
-            if (zv[i] == zoom_) zi = i;
-        if (ImGui::Combo("##zoom", &zi, zooms, 8)) zoom_ = zv[zi];
-        tooltip(tr("Zoom"));
-        rx += comboZ + 6;
+    if (rx > x + fs) {
+        const float bh = ImGui::GetFrameHeight();
+        const ImVec2 bp(rx, row.y + (rowH - bh) * 0.5f);
+        ImGui::SetCursorScreenPos(bp);
+        const bool ratioPressed = ImGui::InvisibleButton("##ratio", ImVec2(ratioW, bh));
+        const bool ratioHover = ImGui::IsItemHovered();
+        tooltip(tr("Aspect Ratio"));
+        dl->AddRectFilled(bp, bp + ImVec2(ratioW, bh), ratioHover ? pal::kPanelHover : pal::kPanelRaised, bh * 0.5f);
+        const ImVec2 rts = ImGui::CalcTextSize(ratioLabel);
+        dl->AddText(ImVec2(bp.x + fs * 0.7f, bp.y + (bh - rts.y) * 0.5f), pal::kText, ratioLabel);
+        const ImVec2 cc(bp.x + ratioW - fs * 0.8f, bp.y + bh * 0.5f);
+        dl->PathLineTo(cc + ImVec2(-fs * 0.22f, -fs * 0.1f));
+        dl->PathLineTo(cc + ImVec2(0, fs * 0.12f));
+        dl->PathLineTo(cc + ImVec2(fs * 0.22f, -fs * 0.1f));
+        dl->PathStroke(pal::kTextMuted, 1.5f);
+        if (ratioPressed) ImGui::OpenPopup("##ratiomenu");
+        rx += ratioW + 6;
         ImGui::SetCursorScreenPos(ImVec2(rx, row.y + (rowH - small) * 0.5f));
         if (iconButton("##more", Icon::More, tr("View options"), false, small)) ImGui::OpenPopup("##viewopts");
         rx += small + 2;
         ImGui::SetCursorScreenPos(ImVec2(rx, row.y + (rowH - small) * 0.5f));
         if (iconButton("##full", Icon::Fullscreen, tr("Full Screen Viewer (Ctrl+F)"), false, small)) app.ui().fullscreenViewer = true;
+        if (ImGui::BeginPopup("##ratiomenu")) {
+            ImGui::TextDisabled("%s", tr("Aspect Ratio"));
+            for (int i = 0; i < presetCount; ++i) {
+                const bool on = seq && presets[i].matches(seq->width, seq->height);
+                char item[160];
+                std::snprintf(item, sizeof item, "%-6s %s", presets[i].label, tr(presets[i].hint));
+                if (ImGui::MenuItem(item, nullptr, on) && !on) app.setSequenceAspect(presets[i].num, presets[i].den);
+            }
+            ImGui::EndPopup();
+        }
         if (ImGui::BeginPopup("##viewopts")) {
+            if (ImGui::BeginMenu(tr("Preview Quality"))) {
+                for (PreviewQuality q : {PreviewQuality::Auto, PreviewQuality::Full, PreviewQuality::Half, PreviewQuality::Quarter,
+                                         PreviewQuality::Eighth})
+                    if (ImGui::MenuItem(tr(qualityLabel(q)), nullptr, q == app.previewQuality)) {
+                        app.previewQuality = q;
+                        app.settings().playback.previewQuality = previewQualityName(q);
+                    }
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu(tr("Zoom"))) {
+                const char* zooms[] = {tr("Fit"), "25%", "50%", "75%", "100%", "150%", "200%", "400%"};
+                const int zv[] = {0, 25, 50, 75, 100, 150, 200, 400};
+                for (int i = 0; i < 8; ++i)
+                    if (ImGui::MenuItem(zooms[i], nullptr, zv[i] == zoom_)) zoom_ = zv[i];
+                ImGui::EndMenu();
+            }
+            ImGui::Separator();
             bool proxies = app.settings().proxy.useProxies;
             if (ImGui::MenuItem(tr("Use Proxies"), nullptr, &proxies)) {
                 app.settings().proxy.useProxies = proxies;
@@ -291,8 +317,9 @@ void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
         const bool hov = ImGui::IsItemHovered();
         if (primary) {
             dl->AddRectFilled(p, p + ImVec2(bw, bh), pal::kAccentPressed, 12.0f);
-            dl->AddRectFilledMultiColor(p + ImVec2(6, 0), p + ImVec2(bw - 6, bh), hov ? pal::kAccentHover : pal::kAccent, IM_COL32(86, 120, 255, 255),
-                                        IM_COL32(70, 96, 240, 255), pal::kAccentPressed);
+            dl->AddRectFilledMultiColor(p + ImVec2(6, 0), p + ImVec2(bw - 6, bh), hov ? pal::kAccentHover : pal::kAccent,
+                                        pal::mix(pal::kAccent, pal::kAccent2, 0.55f), pal::mix(pal::kAccentPressed, pal::kAccent2, 0.45f),
+                                        pal::kAccentPressed);
             dl->AddRectFilled(p, p + ImVec2(bw, bh), IM_COL32(255, 255, 255, hov ? 18 : 0), 12.0f);
         } else {
             dl->AddRectFilled(p, p + ImVec2(bw, bh), hov ? pal::kPanelHover : pal::kPanelRaised, 12.0f);

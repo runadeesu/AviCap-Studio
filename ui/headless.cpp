@@ -24,7 +24,8 @@ HeadlessHost::HeadlessHost(App& app, ImVec2 displaySize) : app_(app) {
     io.DisplaySize = displaySize;
     io.ConfigWindowsMoveFromTitleBarOnly = true;
     loadUiFonts();
-    applyTheme(1.0f, false);
+    accent_ = app.settings().ui.accent;
+    applyTheme(1.0f, false, accent_);
     window_ = std::make_unique<MainWindow>(app);
 }
 
@@ -39,6 +40,10 @@ void HeadlessHost::frame(float dt) {
     ImGuiIO& io = ImGui::GetIO();
     io.DeltaTime = dt;
     app_.tick();
+    if (app_.settings().ui.accent != accent_) {
+        accent_ = app_.settings().ui.accent;
+        applyTheme(1.0f, false, accent_);
+    }
     ImGui::NewFrame();
     window_->frame();
     ImGui::Render();

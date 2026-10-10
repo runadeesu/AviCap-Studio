@@ -23,6 +23,7 @@ struct InterfaceSettings {
     std::string timecodeStyle = "timecode";  // timecode | frames | seconds
     bool showTooltips = true;
     bool highContrast = false;  // also enabled automatically when Windows high contrast is on
+    std::string accent = "violet";  // violet | cyan | blue | pink | orange
     bool snapping = true;
     std::string workspace = "Editing";
     bool multiViewports = true;  // panels can be dragged out to other monitors

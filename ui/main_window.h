@@ -12,7 +12,7 @@
 
 namespace avc::ui {
 
-void applyTheme(float scale, bool highContrast);
+void applyTheme(float scale, bool highContrast, const std::string& accent = "violet");
 // Loads UI fonts (Latin + Japanese) from the system; returns a description.
 std::string loadUiFonts();
 // Semibold UI font for headings (nullptr when none was found).

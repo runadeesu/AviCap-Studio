@@ -142,7 +142,7 @@ void AiPanel::drawPlan(App& app) {
         bool on = i < st.enabled.size() && st.enabled[i];
         char label[32];
         std::snprintf(label, sizeof label, "%zu.", i + 1);
-        if (ImGui::Checkbox(label, &on)) {
+        if (checkbox(label, &on)) {
             st.enabled[i] = on;
             changed = true;
         }
@@ -239,7 +239,7 @@ void AiPanel::drawProvider(App& app) {
         ImGui::TextWrapped("%s", tr("Enter your Anthropic API key (from the Claude Console)."));
         ImGui::SetNextItemWidth(-1);
         ImGui::InputTextWithHint("##apikey", "sk-ant-...", keyBuf_, sizeof keyBuf_, ImGuiInputTextFlags_Password);
-        ImGui::Checkbox(tr("Remember on this PC (encrypted for your Windows account)"), &rememberKey_);
+        checkbox(tr("Remember on this PC (encrypted for your Windows account)"), &rememberKey_);
         ImGui::BeginDisabled(keyBuf_[0] == 0);
         if (ImGui::Button(tr("Use this key"))) {
             Status s = ai.setApiKey(keyBuf_, rememberKey_);
@@ -273,7 +273,7 @@ void AiPanel::drawSilence(App& app) {
     AiService& ai = app.ai();
     hintText(tr("Finds pauses in speech and removes them from every track at once, so video and audio stay in sync."));
     ai::SilenceOptions& o = ai.silenceOptions;
-    ImGui::Checkbox(tr("Automatic threshold"), &o.autoThreshold);
+    checkbox(tr("Automatic threshold"), &o.autoThreshold);
     tooltip(tr("Measures the background noise and picks the threshold for you"));
     ImGui::BeginDisabled(o.autoThreshold);
     ImGui::SliderFloat(formRow(tr("Threshold")), &o.thresholdDb, -70.0f, -20.0f, "%.0f dB");
@@ -307,7 +307,7 @@ void AiPanel::drawSilence(App& app) {
         return;
     }
     ImGui::SameLine();
-    ImGui::Checkbox(tr("Show on timeline"), &ai.showSilenceOverlay);
+    checkbox(tr("Show on timeline"), &ai.showSilenceOverlay);
 
     const auto ranges = ai.silenceRangesOnTimeline();
     Time total{0};

@@ -2,7 +2,9 @@
 
 #include <cfloat>
 #include <filesystem>
+#include <iterator>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include <stb_truetype.h>
@@ -17,8 +19,52 @@
 
 namespace avc::ui {
 
-void applyTheme(float scale, bool highContrast) {
+namespace pal {
+
+namespace {
+struct AccentDef {
+    AccentPreset preset;
+    ImU32 hover, pressed, text, second;
+};
+// Each accent keeps white text readable on the filled buttons.
+const AccentDef kAccents[] = {
+    {{"violet", trNoop("Violet"), IM_COL32(124, 92, 255, 255)}, IM_COL32(145, 118, 255, 255), IM_COL32(104, 74, 230, 255),
+     IM_COL32(178, 160, 255, 255), IM_COL32(56, 160, 255, 255)},
+    {{"cyan", trNoop("Cyan"), IM_COL32(0, 172, 200, 255)}, IM_COL32(20, 196, 224, 255), IM_COL32(0, 148, 174, 255),
+     IM_COL32(96, 222, 240, 255), IM_COL32(64, 120, 255, 255)},
+    {{"blue", trNoop("Blue"), IM_COL32(40, 120, 235, 255)}, IM_COL32(66, 142, 245, 255), IM_COL32(30, 100, 210, 255),
+     IM_COL32(130, 180, 255, 255), IM_COL32(32, 200, 220, 255)},
+    {{"pink", trNoop("Pink"), IM_COL32(230, 60, 140, 255)}, IM_COL32(242, 92, 162, 255), IM_COL32(204, 46, 122, 255),
+     IM_COL32(250, 160, 205, 255), IM_COL32(255, 140, 60, 255)},
+    {{"orange", trNoop("Orange"), IM_COL32(236, 104, 28, 255)}, IM_COL32(248, 128, 52, 255), IM_COL32(212, 88, 18, 255),
+     IM_COL32(255, 178, 120, 255), IM_COL32(236, 60, 120, 255)},
+};
+}  // namespace
+
+const AccentPreset* accentPresets(int* count) {
+    static AccentPreset list[std::size(kAccents)];
+    for (size_t i = 0; i < std::size(kAccents); ++i) list[i] = kAccents[i].preset;
+    if (count) *count = static_cast<int>(std::size(kAccents));
+    return list;
+}
+
+void setAccent(const char* id) {
+    const AccentDef* def = &kAccents[0];
+    for (const AccentDef& d : kAccents)
+        if (id && std::string_view(id) == d.preset.id) def = &d;
+    kAccent = def->preset.swatch;
+    kAccentHover = def->hover;
+    kAccentPressed = def->pressed;
+    kAccentSoft = withAlpha(def->preset.swatch, 46.0f / 255.0f);
+    kAccentText = def->text;
+    kAccent2 = def->second;
+}
+
+}  // namespace pal
+
+void applyTheme(float scale, bool highContrast, const std::string& accent) {
     using namespace pal;
+    setAccent(accent.c_str());
     ImGuiStyle style;
     ImGui::StyleColorsDark(&style);
     // Geometry: rounded, airy controls; panels are separated by gaps instead

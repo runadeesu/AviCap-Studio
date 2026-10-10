@@ -13,7 +13,7 @@ namespace avc::ui {
 
 namespace {
 
-float labelWidth() { return ImGui::GetFontSize() * 15.0f; }
+float labelWidth() { return std::min(ImGui::GetFontSize() * 15.0f, ImGui::GetContentRegionAvail().x * 0.45f); }
 
 std::string hidden(const char* label) { return std::string("##") + label; }
 
@@ -96,53 +96,83 @@ void SettingsWindow::draw(App& app) {
         devices_ = audio::listAudioOutputs();
         loaded_ = true;
     }
-    ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * 46, ImGui::GetFontSize() * 34), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(ImGui::GetFontSize() * 52, ImGui::GetFontSize() * 34), ImGuiCond_FirstUseEver);
+    const ImGuiViewport* vp = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(vp->GetCenter(), ImGuiCond_FirstUseEver, ImVec2(0.5f, 0.5f));
     bool open = true;
-    if (!ImGui::Begin(tr("Preferences"), &open, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse)) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+    const bool visible = ImGui::Begin(tr("Preferences"), &open, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse);
+    ImGui::PopStyleVar();
+    floatingWindowDecor();
+    if (!visible) {
         ImGui::End();
         if (!open) ui.showSettings = false;
         return;
     }
-    const float footer = ImGui::GetFrameHeightWithSpacing() + 8;
-    ImGui::BeginChild("##settingsbody", ImVec2(0, -footer));
-    if (ImGui::BeginTabBar("##settingstabs")) {
-        auto tab = [&](const char* name) {
-            const bool select = ui.settingsTab == name;
-            const bool open2 = ImGui::BeginTabItem(tr(name), nullptr, select ? ImGuiTabItemFlags_SetSelected : 0);
-            if (select) ui.settingsTab.clear();
-            return open2;
-        };
+    // Sidebar with the categories (Windows 11 settings style), page on the right.
+    struct Category {
+        const char* id;
+        Icon icon;
+    };
+    static const Category categories[] = {
+        {"General", Icon::Gear},       {"Interface", Icon::Palette}, {"Playback", Icon::Play},      {"Performance", Icon::Bolt},
+        {"GPU", Icon::Grid},           {"Audio", Icon::Volume},      {"Proxies", Icon::Film},      {"Cache", Icon::Folder},
+        {"AI & Privacy", Icon::Sparkle}, {"Export", Icon::Export},   {"Keyboard", Icon::List},
+    };
+    if (!ui.settingsTab.empty()) {
+        page_ = ui.settingsTab;
+        ui.settingsTab.clear();
+    }
+    if (page_.empty()) page_ = "General";
+    const float fs = ImGui::GetFontSize();
+    const float footer = ImGui::GetFrameHeight() + 24;
+    const float navW = fs * 13.0f;
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, pal::kAppBg);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 10));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 2));
+    ImGui::BeginChild("##nav", ImVec2(navW, -footer), ImGuiChildFlags_AlwaysUseWindowPadding);
+    for (const Category& c : categories)
+        if (navItem(c.id, c.icon, tr(c.id), page_ == c.id)) page_ = c.id;
+    ImGui::EndChild();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
+    ImGui::SameLine(0, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20, 14));
+    ImGui::BeginChild("##settingsbody", ImVec2(0, -footer), ImGuiChildFlags_AlwaysUseWindowPadding);
+    headingText(tr(page_.c_str()), 1.25f);
+    ImGui::Spacing();
+    ImGui::Spacing();
+    {
+        auto tab = [&](const char* name) { return page_ == name; };
         if (tab("General")) {
             comboString(tr("Language"), working_.general.language, {{"auto", tr("System default")}, {"en", "English"}, {"ja", "日本語"}});
             rowSliderInt(tr("Autosave snapshot interval (s)"), &working_.general.autosaveIntervalSec, 15, 600);
             helpMarker(tr("Every edit is journaled immediately; this controls how often a full snapshot is written."));
             pathField(app, tr("Default project folder"), working_.general.defaultProjectDir, true);
-            ImGui::Checkbox(tr("Reopen the last project at startup"), &working_.general.reopenLastProject);
-            ImGui::EndTabItem();
+            checkbox(tr("Reopen the last project at startup"), &working_.general.reopenLastProject);
         }
         if (tab("Interface")) {
             rowSliderFloat(tr("UI scale (0 = Windows setting)"), &working_.ui.uiScale, 0.0f, 3.0f, "%.2f");
             comboString(tr("Time display"), working_.ui.timecodeStyle,
                         {{"timecode", tr("Timecode")}, {"frames", tr("Frames")}, {"seconds", tr("Seconds")}});
-            ImGui::Checkbox(tr("Show tooltips"), &working_.ui.showTooltips);
-            ImGui::Checkbox(tr("High contrast theme"), &working_.ui.highContrast);
-            ImGui::EndTabItem();
+            checkbox(tr("Show tooltips"), &working_.ui.showTooltips);
+            formLabel(tr("Accent color"));
+            accentSwatches("##accent", working_.ui.accent);
+            checkbox(tr("High contrast theme"), &working_.ui.highContrast);
         }
         if (tab("Playback")) {
             comboString(tr("Preview quality"), working_.playback.previewQuality,
                         {{"auto", tr("Auto")}, {"full", tr("Full")}, {"half", "1/2"}, {"quarter", "1/4"}, {"eighth", "1/8"}});
-            ImGui::Checkbox(tr("Adaptive quality during playback"), &working_.playback.adaptiveQuality);
-            ImGui::Checkbox(tr("Audio scrubbing"), &working_.playback.audioScrubbing);
-            ImGui::Checkbox(tr("Loop playback"), &working_.playback.loop);
+            checkbox(tr("Adaptive quality during playback"), &working_.playback.adaptiveQuality);
+            checkbox(tr("Audio scrubbing"), &working_.playback.audioScrubbing);
+            checkbox(tr("Loop playback"), &working_.playback.loop);
             rowSliderInt(tr("Maximum shuttle speed (J/L)"), &working_.playback.shuttleMaxSpeed, 2, 32);
-            ImGui::EndTabItem();
         }
         if (tab("Performance")) {
-            ImGui::Checkbox(tr("Hardware video decoding (restart required)"), &working_.performance.hardwareDecode);
+            checkbox(tr("Hardware video decoding (restart required)"), &working_.performance.hardwareDecode);
             rowSliderInt(tr("Frame cache (MB)"), &working_.performance.frameCacheMB, 128, 16384);
             rowSliderInt(tr("Maximum open decoders"), &working_.performance.maxOpenDecoders, 4, 64);
             rowSliderInt(tr("Decode threads (0 = auto)"), &working_.performance.decodeThreads, 0, 32);
-            ImGui::EndTabItem();
         }
         if (tab("GPU")) {
             comboString(tr("Graphics API (restart required)"), working_.gpu.api,
@@ -151,35 +181,31 @@ void SettingsWindow::draw(App& app) {
             std::snprintf(adapter, sizeof adapter, "%s", working_.gpu.adapter.c_str());
             if (rowInputText(tr("Preferred adapter (name contains)"), adapter, sizeof adapter)) working_.gpu.adapter = adapter;
             ImGui::TextDisabled("%s: %s", tr("Current"), app.device().info().adapter.c_str());
-            ImGui::EndTabItem();
         }
         if (tab("Audio")) {
             std::vector<std::pair<std::string, const char*>> opts{{"", tr("System default")}};
             for (const auto& d : devices_) opts.emplace_back(d.id, d.name.c_str());
             comboString(tr("Output device (restart required)"), working_.audio.outputDevice, opts);
             rowSliderInt(tr("Buffer (ms)"), &working_.audio.bufferMs, 10, 200);
-            ImGui::EndTabItem();
         }
         if (tab("Proxies")) {
-            ImGui::Checkbox(tr("Use proxies for playback when available"), &working_.proxy.useProxies);
+            checkbox(tr("Use proxies for playback when available"), &working_.proxy.useProxies);
             comboString(tr("Proxy resolution"), working_.proxy.preset, {{"360p", "360p"}, {"540p", "540p"}, {"720p", "720p"}, {"1080p", "1080p"}});
             rowSliderInt(tr("Create automatically above height (0 = never)"), &working_.proxy.autoCreateAboveHeight, 0, 4320);
             pathField(app, tr("Proxy folder (empty = cache)"), working_.proxy.location, true);
             hintText(tr("Exports always use the original media."));
-            ImGui::EndTabItem();
         }
         if (tab("Cache")) {
             float gb = static_cast<float>(working_.cache.maxGB);
             if (rowSliderFloat(tr("Maximum cache size (GB)"), &gb, 1.0f, 500.0f, "%.0f")) working_.cache.maxGB = gb;
             rowSliderInt(tr("Delete entries older than (days)"), &working_.cache.maxAgeDays, 1, 365);
-            ImGui::Checkbox(tr("Clean up automatically at startup"), &working_.cache.autoCleanup);
+            checkbox(tr("Clean up automatically at startup"), &working_.cache.autoCleanup);
             pathField(app, tr("Cache folder (restart required)"), working_.cache.location, true);
-            ImGui::EndTabItem();
         }
         if (tab("AI & Privacy")) {
             ImGui::TextWrapped("%s", tr("AviCap Studio works locally. Nothing is uploaded unless you explicitly enable a cloud feature below."));
-            ImGui::Checkbox(tr("Allow network access (sound search, cloud AI)"), &working_.privacy.allowNetwork);
-            ImGui::Checkbox(tr("Allow sending transcripts to the cloud AI assistant"), &working_.ai.cloudConsent);
+            checkbox(tr("Allow network access (sound search, cloud AI)"), &working_.privacy.allowNetwork);
+            checkbox(tr("Allow sending transcripts to the cloud AI assistant"), &working_.ai.cloudConsent);
             helpMarker(tr("Only the text you type and timeline metadata/transcripts are sent - never video or audio files."));
             comboString(tr("Assistant provider"), working_.ai.assistantProvider, {{"local", tr("Local rules (offline)")}, {"anthropic", "Claude (Anthropic API)"}});
             char model[96];
@@ -188,28 +214,24 @@ void SettingsWindow::draw(App& app) {
             pathField(app, tr("Whisper model file (ggml)"), working_.ai.whisperModelPath, false);
             comboString(tr("Caption language"), working_.ai.captionLanguage, {{"auto", tr("Auto detect")}, {"ja", "日本語"}, {"en", "English"}});
             ImGui::Separator();
-            ImGui::Checkbox(tr("Write crash dumps (stay on this PC)"), &working_.privacy.crashDumps);
-            ImGui::Checkbox(tr("Share anonymous usage statistics (opt-in)"), &working_.privacy.analyticsOptIn);
+            checkbox(tr("Write crash dumps (stay on this PC)"), &working_.privacy.crashDumps);
+            checkbox(tr("Share anonymous usage statistics (opt-in)"), &working_.privacy.analyticsOptIn);
             helpMarker(tr("No statistics are collected or sent unless this is enabled."));
-            ImGui::EndTabItem();
         }
         if (tab("Export")) {
             std::vector<std::pair<std::string, const char*>> opts;
             for (const auto& p : exp::presets()) opts.emplace_back(p.id, tr(p.name.c_str()));
             comboString(tr("Default preset"), working_.exporting.defaultPreset, opts);
             pathField(app, tr("Default export folder"), working_.exporting.defaultDir, true);
-            ImGui::Checkbox(tr("Verify files after export"), &working_.exporting.verifyAfterExport);
-            ImGui::Checkbox(tr("Prefer hardware encoders"), &working_.exporting.preferHardwareEncoder);
-            ImGui::EndTabItem();
+            checkbox(tr("Verify files after export"), &working_.exporting.verifyAfterExport);
+            checkbox(tr("Prefer hardware encoders"), &working_.exporting.preferHardwareEncoder);
         }
         if (tab("Keyboard")) {
             drawShortcuts(app);
-            ImGui::EndTabItem();
         }
-        ImGui::EndTabBar();
     }
     ImGui::EndChild();
-    ImGui::Separator();
+    ImGui::PopStyleVar();
     auto apply = [&] {
         app.settings() = working_;
         app.commands().setPreset(working_.keyboard.preset);
@@ -221,14 +243,22 @@ void SettingsWindow::draw(App& app) {
         app.applySettings();
         app.saveSettings();
     };
-    if (ImGui::Button(tr("OK"), ImVec2(ImGui::GetFontSize() * 6, 0))) {
-        apply();
-        ui.showSettings = false;
+    // Footer: hairline, then Cancel / Apply / OK on the right.
+    {
+        const ImVec2 wp = ImGui::GetWindowPos();
+        const float y = ImGui::GetCursorScreenPos().y;
+        ImGui::GetWindowDrawList()->AddLine(ImVec2(wp.x, y), ImVec2(wp.x + ImGui::GetWindowWidth(), y), pal::kStroke);
+        const float bw = fs * 6.5f;
+        ImGui::SetCursorPos(ImVec2(ImGui::GetWindowWidth() - (bw * 3 + 8 * 2 + 16), ImGui::GetCursorPosY() + 12));
+        if (ImGui::Button(tr("Cancel"), ImVec2(bw, 0)) || !open) ui.showSettings = false;
+        ImGui::SameLine(0, 8);
+        if (ImGui::Button(tr("Apply"), ImVec2(bw, 0))) apply();
+        ImGui::SameLine(0, 8);
+        if (primaryButton(tr("OK"), ImVec2(bw, 0))) {
+            apply();
+            ui.showSettings = false;
+        }
     }
-    ImGui::SameLine();
-    if (ImGui::Button(tr("Apply"), ImVec2(ImGui::GetFontSize() * 6, 0))) apply();
-    ImGui::SameLine();
-    if (ImGui::Button(tr("Cancel"), ImVec2(ImGui::GetFontSize() * 6, 0)) || !open) ui.showSettings = false;
     ImGui::End();
 }
 

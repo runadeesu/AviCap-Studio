@@ -109,7 +109,7 @@ void DiagnosticsPanel::draw(App& app) {
         ImGui::SetNextItemWidth(ImGui::GetFontSize() * 12);
         ImGui::InputTextWithHint("##filter", tr("Filter"), filter_, sizeof filter_);
         ImGui::SameLine();
-        ImGui::Checkbox(tr("Auto-scroll"), &autoScroll_);
+        checkbox(tr("Auto-scroll"), &autoScroll_);
         ImGui::SameLine();
         const bool copy = ImGui::Button(tr("Copy"));
         ImGui::SameLine();

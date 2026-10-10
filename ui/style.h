@@ -21,12 +21,14 @@ inline constexpr ImU32 kText = IM_COL32(236, 238, 244, 255);
 inline constexpr ImU32 kTextMuted = IM_COL32(152, 157, 172, 255);
 inline constexpr ImU32 kTextFaint = IM_COL32(104, 109, 124, 255);
 
-// Accent (violet) and states.
-inline constexpr ImU32 kAccent = IM_COL32(124, 92, 255, 255);
-inline constexpr ImU32 kAccentHover = IM_COL32(145, 118, 255, 255);
-inline constexpr ImU32 kAccentPressed = IM_COL32(104, 74, 230, 255);
-inline constexpr ImU32 kAccentSoft = IM_COL32(124, 92, 255, 46);
-inline constexpr ImU32 kAccentText = IM_COL32(178, 160, 255, 255);
+// Accent and states. The accent is chosen in the settings (setAccent), so
+// these five are variables; read them at draw time, never cache them.
+inline ImU32 kAccent = IM_COL32(124, 92, 255, 255);
+inline ImU32 kAccentHover = IM_COL32(145, 118, 255, 255);
+inline ImU32 kAccentPressed = IM_COL32(104, 74, 230, 255);
+inline ImU32 kAccentSoft = IM_COL32(124, 92, 255, 46);
+inline ImU32 kAccentText = IM_COL32(178, 160, 255, 255);
+inline ImU32 kAccent2 = IM_COL32(56, 160, 255, 255);  // second gradient stop (logo, hero cards)
 inline constexpr ImU32 kSuccess = IM_COL32(48, 196, 125, 255);
 inline constexpr ImU32 kWarning = IM_COL32(255, 178, 46, 255);
 inline constexpr ImU32 kDanger = IM_COL32(255, 86, 92, 255);
@@ -47,9 +49,26 @@ inline constexpr float kPanelRadius = 10.0f;
 inline constexpr float kControlRadius = 7.0f;
 inline constexpr float kPanelGap = 6.0f;
 
+// Accent presets: "violet" (default), "cyan", "blue", "pink", "orange".
+struct AccentPreset {
+    const char* id;
+    const char* label;  // English (tr)
+    ImU32 swatch;
+};
+const AccentPreset* accentPresets(int* count);
+void setAccent(const char* id);
+
 inline ImVec4 v4(ImU32 c) { return ImGui::ColorConvertU32ToFloat4(c); }
 inline ImU32 withAlpha(ImU32 c, float a) {
     return (c & 0x00FFFFFFu) | (static_cast<ImU32>(static_cast<float>((c >> 24) & 0xFF) * a) << 24);
+}
+
+inline ImU32 mix(ImU32 a, ImU32 b, float t) {
+    auto ch = [&](int shift) {
+        const float x = static_cast<float>((a >> shift) & 0xFF), y = static_cast<float>((b >> shift) & 0xFF);
+        return static_cast<ImU32>(x + (y - x) * t + 0.5f) << shift;
+    };
+    return ch(0) | ch(8) | ch(16) | ch(24);
 }
 
 }  // namespace avc::ui::pal
