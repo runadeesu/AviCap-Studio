@@ -1,4 +1,5 @@
 #include "ui/app.h"
+#include "ui/text_presets.h"
 
 #include <algorithm>
 #include <chrono>
@@ -1120,6 +1121,21 @@ void App::setLoop(bool on) {
 }
 
 // ------------------------------------------------------------------ editing
+
+Status App::applyTextPreset(ClipId clipId, size_t index) {
+    const Sequence* seq = sequence();
+    const auto& presets = textPresets();
+    if (!seq || index >= presets.size()) return Status::error("invalid text preset");
+    const Clip* clip = seq->clip(clipId);
+    if (!clip || clip->kind != ClipKind::Text) return Status::error("not a text clip");
+    const TextPreset& preset = presets[index];
+    return editSequence("Text Style Preset", [&](SequenceEditor& e) {
+        Clip& c = e.mutableClip(clipId);
+        resetTextLook(c);
+        preset.apply(c, *seq);
+        return Status::ok();
+    });
+}
 
 Status App::setSequenceAspect(int num, int den) {
     const Sequence* seq = sequence();

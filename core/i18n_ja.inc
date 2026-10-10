@@ -1053,3 +1053,4 @@
 {"Drag media here to start editing", "メディアをここにドラッグして編集を始めましょう"},
 {"No sounds yet", "サウンドがまだありません"},
 {"Click to open the sounds folder", "クリックするとサウンドフォルダーを開きます"},
+{"Style", "スタイル"},

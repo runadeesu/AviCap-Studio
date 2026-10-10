@@ -14,6 +14,7 @@
 #include "timeline/edit_ops.h"
 #include "ui/edit_helpers.h"
 #include "ui/panels.h"
+#include "ui/text_presets.h"
 #include "ui/widgets.h"
 
 namespace avc::ui {
@@ -31,6 +32,13 @@ int resizeCallback(ImGuiInputTextCallbackData* data) {
 
 bool inputTextMultiline(const char* label, std::string& s, ImVec2 size) {
     return ImGui::InputTextMultiline(label, s.data(), s.capacity() + 1, size, ImGuiInputTextFlags_CallbackResize, resizeCallback, &s);
+}
+
+// Small muted caption above a field.
+void caption(const char* text) {
+    ImGui::PushStyleColor(ImGuiCol_Text, pal::kTextMuted);
+    ImGui::TextUnformatted(text);
+    ImGui::PopStyleColor();
 }
 
 const std::vector<std::string>& fontFamilies() {
@@ -195,6 +203,34 @@ void InspectorPanel::drawTextSection(App& app, const Clip& clip) {
             return Status::ok();
         }, EditOptions{"text:" + std::to_string(id)});
     }
+    // One-click looks (the same presets as the Library's text page).
+    if (clip.kind == ClipKind::Text) {
+        ImGui::Spacing();
+        caption(tr("Style"));
+        const auto& presets = textPresets();
+        const float avail = ImGui::GetContentRegionAvail().x;
+        const int cols = avail > ImGui::GetFontSize() * 15 ? 3 : 2;
+        const float gap = 6.0f;
+        const float w = (avail - gap * static_cast<float>(cols - 1)) / static_cast<float>(cols);
+        const float h = ImGui::GetFontSize() * 2.6f;
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        for (size_t i = 0; i < presets.size(); ++i) {
+            if (i % static_cast<size_t>(cols) != 0) ImGui::SameLine(0, gap);
+            const ImVec2 p = ImGui::GetCursorScreenPos();
+            ImGui::PushID(static_cast<int>(i));
+            const bool pressed = ImGui::InvisibleButton("##style", ImVec2(w, h));
+            const bool hovered = ImGui::IsItemHovered();
+            ImGui::PopID();
+            tooltip(tr(presets[i].name));
+            dl->AddRectFilled(p, p + ImVec2(w, h), hovered ? IM_COL32(52, 50, 72, 255) : IM_COL32(36, 36, 50, 255), pal::kControlRadius);
+            dl->PushClipRect(p, p + ImVec2(w, h), true);
+            presets[i].preview(dl, p, p + ImVec2(w, h), tr(presets[i].name));
+            dl->PopClipRect();
+            if (hovered) dl->AddRect(p, p + ImVec2(w, h), pal::kAccent, pal::kControlRadius, 1.5f);
+            if (pressed) app.applyTextPreset(clip.id, i);
+        }
+        ImGui::Spacing();
+    }
     TextStyle st = clip.textStyle;
     bool changed = false;
     if (ImGui::BeginCombo(formRow(tr("Font")), st.fontFamily.c_str(), ImGuiComboFlags_HeightLarge)) {
@@ -351,13 +387,6 @@ Icon clipIcon(const Clip& clip, bool audio, const MediaItem* media) {
     if (audio) return Icon::Music;
     if (media && media->info.kind == MediaKind::Image) return Icon::Image;
     return Icon::Film;
-}
-
-// Small muted caption above a field.
-void caption(const char* text) {
-    ImGui::PushStyleColor(ImGuiCol_Text, pal::kTextMuted);
-    ImGui::TextUnformatted(text);
-    ImGui::PopStyleColor();
 }
 
 }  // namespace

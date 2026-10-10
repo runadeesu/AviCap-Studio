@@ -20,6 +20,7 @@
 #include "ui/effect_previews.h"
 #include "effects/effects.h"
 #include "ui/headless.h"
+#include "ui/text_presets.h"
 #include "ui/widgets.h"
 
 using namespace avc;
@@ -654,4 +655,39 @@ TEST_CASE("Japanese-aware wrapping keeps words together and follows kinsoku") {
     }
     // Explicit newlines are kept.
     CHECK(wrapLines(font, size, "a\nb", nullptr, 500.0f).size() == 2);
+}
+
+TEST_CASE("text style presets restyle a clip without leftovers, in one undo step") {
+    AppOptions opt;
+    opt.dataDir = test::makeTempDir("ui_textpreset");
+    opt.headless = true;
+    opt.loadSettings = false;
+    App app(std::move(opt));
+    HeadlessHost host(app, ImVec2(1280, 800));
+    host.frames(1);
+    const auto& presets = textPresets();
+    auto index = [&](const char* name) {
+        for (size_t i = 0; i < presets.size(); ++i)
+            if (std::string(presets[i].name) == name) return i;
+        FAIL("preset not found: " << name);
+        return size_t{0};
+    };
+    REQUIRE(app.addTextClip("Hello", presets[index("Gradient")].apply));
+    const Clip* clip = nullptr;
+    for (const auto& t : app.sequence()->tracks)
+        for (const auto& c : t->clips)
+            if (c->kind == ClipKind::Text) clip = c.get();
+    REQUIRE(clip);
+    const ClipId id = clip->id;
+    REQUIRE(app.sequence()->clip(id)->textParams.find("gradientEnabled"));
+    REQUIRE(app.applyTextPreset(id, index("Neon")));
+    CHECK(app.doc().undoLabel() == "Text Style Preset");
+    const Clip* neon = app.sequence()->clip(id);
+    CHECK(neon->text == "Hello");
+    CHECK(neon->textParams.find("gradientEnabled") == nullptr);  // previous look removed
+    CHECK(neon->textParams.find("glowRadius") != nullptr);
+    app.undo();
+    CHECK(app.sequence()->clip(id)->textParams.find("gradientEnabled") != nullptr);
+    CHECK_FALSE(app.applyTextPreset(id, presets.size()));
+    host.frames(2);
 }

@@ -238,6 +238,8 @@ public:
     // Change the frame shape (16:9, 9:16, 1:1...) keeping the short side, so
     // 1920x1080 becomes 1080x1920 for vertical video. One undo step.
     Status setSequenceAspect(int num, int den);
+    // Restyles a text clip with textPresets()[index] (one undo step).
+    Status applyTextPreset(ClipId clip, size_t index);
     Status editProject(const std::string& label, const std::function<Status(ProjectEditor&)>& fn, const EditOptions& opt = {});
     void undo();
     void redo();
