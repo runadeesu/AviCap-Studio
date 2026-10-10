@@ -127,6 +127,8 @@ void hintText(const char* text);
 // Latin words together and follows basic kinsoku rules (no line starts with
 // 、。」 etc.). Returns [begin, end) of each line.
 std::vector<std::pair<const char*, const char*>> wrapLines(ImFont* font, float size, const char* text, const char* end, float width);
+// `text` shortened with "…" so it fits `maxWidth` (unchanged when it fits).
+std::string ellipsize(ImFont* font, float size, const char* text, float maxWidth);
 // ImGui::TextWrapped replacement using wrapLines (current text colour).
 void wrappedText(const char* text);
 

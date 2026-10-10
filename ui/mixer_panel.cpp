@@ -16,7 +16,10 @@ void MixerPanel::draw(App& app) {
     if (!seq) return;
     const auto meters = app.playback().trackMeters();
     const float fs = ImGui::GetFontSize();
-    const float stripW = fs * 4.4f;
+    // Strips share the panel width (narrow docks show every channel), within limits.
+    const int strips = static_cast<int>(seq->audioTrackIndices().size()) + 1;
+    const float stripW = std::clamp((ImGui::GetContentRegionAvail().x - 6.0f * static_cast<float>(strips - 1)) / static_cast<float>(strips),
+                                    fs * 3.3f, fs * 4.4f);
     const float frame = ImGui::GetFrameHeight();
     // Everything in a strip except the fader: name, pan, dB readout, M/S, padding.
     const float chrome = fs * 1.5f + frame * 0.7f + 2 + ImGui::GetTextLineHeightWithSpacing() + 2 + frame * 0.8f + 18;

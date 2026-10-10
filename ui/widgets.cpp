@@ -1071,6 +1071,26 @@ std::vector<std::pair<const char*, const char*>> wrapLines(ImFont* font, float s
     return lines;
 }
 
+std::string ellipsize(ImFont* font, float size, const char* text, float maxWidth) {
+    if (!text) return {};
+    const char* end = text + std::strlen(text);
+    if (font->CalcTextSizeA(size, FLT_MAX, 0.0f, text, end).x <= maxWidth) return std::string(text, end);
+    const char* dots = font->IsGlyphInFont(0x2026) ? "\xE2\x80\xA6" : "...";
+    const float dw = font->CalcTextSizeA(size, FLT_MAX, 0.0f, dots).x;
+    const char* p = text;
+    float w = 0.0f;
+    while (p < end) {
+        unsigned c = 0;
+        const int n = ImTextCharFromUtf8(&c, p, end);
+        const float cw = font->CalcTextSizeA(size, FLT_MAX, 0.0f, p, p + n).x;
+        if (w + cw + dw > maxWidth) break;
+        w += cw;
+        p += n;
+    }
+    while (p > text && p[-1] == ' ') --p;
+    return std::string(text, p) + dots;
+}
+
 void wrappedText(const char* text) {
     // Same width rules as ImGui::TextWrapped: an explicit wrap position wins;
     // auto-resizing windows (modals, tooltips) get a comfortable fixed width.

@@ -262,9 +262,8 @@ void MediaPanel::draw(App& app) {
                     // Name (one line, with a small type icon)
                     const float ny = t1.y + 4;
                     drawIcon(dl, mediaIcon(m), ImVec2(p.x + fs * 0.45f, ny + lineH * 0.5f), fs * 0.62f, sel ? pal::kAccentText : pal::kTextFaint);
-                    dl->PushClipRect(ImVec2(p.x, ny), ImVec2(p.x + tileW, ny + lineH + 2), true);
-                    dl->AddText(ImVec2(p.x + fs * 1.0f, ny), sel ? pal::kText : pal::kTextMuted, m.name.c_str());
-                    dl->PopClipRect();
+                    const std::string shownName = ellipsize(ImGui::GetFont(), fs, m.name.c_str(), tileW - fs * 1.0f);
+                    dl->AddText(ImVec2(p.x + fs * 1.0f, ny), sel ? pal::kText : pal::kTextMuted, shownName.c_str());
                     ImGui::PopID();
                 }
             }

@@ -96,10 +96,9 @@ int tileGrid(App& app, const std::vector<Tile>& tiles, const char* dragType) {
             drawIcon(dl, t.icon, a + ImVec2(w * 0.5f, previewH * 0.5f), previewH * 0.42f, IM_COL32(255, 255, 255, 230));
         }
         if (hovered) dl->AddRect(a, b, IM_COL32(255, 255, 255, 120), pal::kControlRadius + 1, 1.5f);
-        // Label (clipped to the tile width).
-        ImGui::PushClipRect(ImVec2(pos.x, b.y), ImVec2(pos.x + w, b.y + labelH), true);
-        dl->AddText(ImVec2(pos.x + 2, b.y + 4), hovered ? pal::kText : pal::kTextMuted, t.label.c_str());
-        ImGui::PopClipRect();
+        // Label (shortened with "…" to the tile width).
+        const std::string shown = ellipsize(ImGui::GetFont(), ImGui::GetFontSize(), t.label.c_str(), w - 4);
+        dl->AddText(ImVec2(pos.x + 2, b.y + 4), hovered ? pal::kText : pal::kTextMuted, shown.c_str());
         ImGui::PopID();
     }
     return activated;

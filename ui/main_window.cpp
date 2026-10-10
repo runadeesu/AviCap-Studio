@@ -217,7 +217,13 @@ void MainWindow::buildDefaultLayout(ImGuiID dockId, const std::string& workspace
         ImGui::DockBuilderSplitNode(dockId, ImGuiDir_Down, 0.42f, &bottom, &top);
         ImGui::DockBuilderSplitNode(top, ImGuiDir_Left, 0.27f, &left, &center);
         ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.33f, &right, &center);
-        ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, 0.11f, &mixer, &timeline);
+        // The mixer gets room for every channel strip (audio tracks + master).
+        const Sequence* seq = app_.sequence();
+        const int strips = seq ? static_cast<int>(seq->audioTrackIndices().size()) + 1 : 3;
+        const float fs = ImGui::GetFontSize();
+        const float want = static_cast<float>(strips) * fs * 3.4f + static_cast<float>(strips - 1) * 6.0f + 30.0f;
+        const float ratio = std::clamp(want / std::max(1.0f, ImGui::GetMainViewport()->WorkSize.x), 0.11f, 0.22f);
+        ImGui::DockBuilderSplitNode(bottom, ImGuiDir_Right, ratio, &mixer, &timeline);
         dock("###Library", left);
         dock("###Scopes", left);
         dock("###Viewer", center);
@@ -475,7 +481,6 @@ void MainWindow::statusBar() {
             break;
         }
     }
-    dl->AddText(ImVec2(wp.x + 14, ty), pal::kTextFaint, left.c_str());
     // Background work as a small pill in the middle.
     std::string mid;
     float progress = -1;
@@ -497,9 +502,13 @@ void MainWindow::statusBar() {
                   app_.device().info().adapter.c_str());
     const float rw = ImGui::CalcTextSize(right).x;
     dl->AddText(ImVec2(wp.x + ImGui::GetWindowWidth() - rw - 14, ty), pal::kTextFaint, right);
+    const float pw = mid.empty() ? 0.0f : ImGui::CalcTextSize(mid.c_str()).x + 28 + (progress >= 0 ? 60 : 0);
+    // The hint gets what is left of the bar (shortened with "…" on narrow windows).
+    const float leftMax = mid.empty() ? ImGui::GetWindowWidth() - rw - 14 * 3 : ImGui::GetWindowWidth() * 0.5f - pw * 0.5f - 14 * 2;
+    const std::string leftShown = ellipsize(ImGui::GetFont(), ImGui::GetFontSize(), left.c_str(), leftMax);
+    dl->AddText(ImVec2(wp.x + 14, ty), pal::kTextFaint, leftShown.c_str());
+    if (leftShown != left && ImGui::IsMouseHoveringRect(ImVec2(wp.x, wp.y), ImVec2(wp.x + leftMax, wp.y + h))) ImGui::SetTooltip("%s", left.c_str());
     if (!mid.empty()) {
-        const ImVec2 ms = ImGui::CalcTextSize(mid.c_str());
-        const float pw = ms.x + 28 + (progress >= 0 ? 60 : 0);
         const ImVec2 pa(wp.x + ImGui::GetWindowWidth() * 0.5f - pw * 0.5f, wp.y + 3), pb(pa.x + pw, wp.y + h - 3);
         dl->AddRectFilled(pa, pb, pal::kPanelRaised, (pb.y - pa.y) * 0.5f);
         dl->AddCircleFilled(ImVec2(pa.x + 12, (pa.y + pb.y) * 0.5f), 3.5f, pal::kAccent);

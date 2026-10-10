@@ -327,8 +327,11 @@ void ViewerPanel::drawWelcome(App& app, ImVec2 size) {
         drawIcon(dl, icon, ic, ir * 1.05f, primary ? IM_COL32(255, 255, 255, 255) : pal::kAccentText);
         const float ty = 16 + ir * 2 + 12;
         dl->PushClipRect(p, p + ImVec2(bw - 6, bh), true);
-        dl->AddText(bold, fs * 1.05f, p + ImVec2(16, ty), primary ? IM_COL32(255, 255, 255, 255) : pal::kText, label);
-        dl->AddText(p + ImVec2(16, ty + fs * 1.1f + 6), primary ? IM_COL32(255, 255, 255, 190) : pal::kTextMuted, hint);
+        const std::string labelShown = ellipsize(bold, fs * 1.05f, label, bw - 28);
+        const std::string hintShown = ellipsize(ImGui::GetFont(), fs, hint, bw - 28);
+        dl->AddText(bold, fs * 1.05f, p + ImVec2(16, ty), primary ? IM_COL32(255, 255, 255, 255) : pal::kText, labelShown.c_str());
+        dl->AddText(p + ImVec2(16, ty + fs * 1.1f + 6), primary ? IM_COL32(255, 255, 255, 190) : pal::kTextMuted, hintShown.c_str());
+        if (hov && (labelShown != label || hintShown != hint)) tooltip((std::string(label) + "\n" + hint).c_str());
         dl->PopClipRect();
         return pressed;
     };
