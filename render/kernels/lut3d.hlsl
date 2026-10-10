@@ -9,15 +9,15 @@ float3 lutSample(float3 c, float n) {
     float fb = b - b0;
     float rx = saturate(c.x) * (n - 1.0f) + 0.5f;
     float gy = (saturate(c.y) * (n - 1.0f) + 0.5f) / n;
-    float3 s0 = xyz(SAMPLE(1, float2((rx + b0 * n) / (n * n), gy)));
-    float3 s1 = xyz(SAMPLE(1, float2((rx + b1 * n) / (n * n), gy)));
+    float3 s0 = XYZ(SAMPLE(1, float2((rx + b0 * n) / (n * n), gy)));
+    float3 s1 = XYZ(SAMPLE(1, float2((rx + b1 * n) / (n * n), gy)));
     return lerp(s0, s1, fb);
 }
 
 float4 kernel_main(KERNEL_CTX) {
     float4 src = SAMPLE_POINT(0, ctx.uv);
     if (src.w <= 0.0f) return src;
-    float3 c = xyz(src) / src.w;
+    float3 c = XYZ(src) / src.w;
     float3 graded = lutSample(c, P(0).x);
     c = lerp(c, graded, P(0).y);
     return float4(saturate(c) * src.w, src.w);

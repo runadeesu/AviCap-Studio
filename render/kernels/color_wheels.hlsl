@@ -8,7 +8,7 @@ float3 wheel(float4 w) { return float3(w.x + w.w, w.y + w.w, w.z + w.w); }
 float4 kernel_main(KERNEL_CTX) {
     float4 src = SAMPLE_POINT(0, ctx.uv);
     if (src.w <= 0.0f) return src;
-    float3 c = xyz(src) / src.w;
+    float3 c = XYZ(src) / src.w;
     float3 lift = wheel(P(0));
     float3 gamma = wheel(P(1));
     float3 gain = wheel(P(2));

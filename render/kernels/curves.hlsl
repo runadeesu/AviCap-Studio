@@ -10,7 +10,7 @@ float lutRow(float v, float row) { return SAMPLE(1, float2(saturate(v) * (255.0f
 float4 kernel_main(KERNEL_CTX) {
     float4 src = SAMPLE_POINT(0, ctx.uv);
     if (src.w <= 0.0f) return src;
-    float3 c0 = xyz(src) / src.w;
+    float3 c0 = XYZ(src) / src.w;
     float3 c = float3(lutRow(c0.x, 0.0f), lutRow(c0.y, 0.0f), lutRow(c0.z, 0.0f));
     c = float3(lutRow(c.x, 1.0f), lutRow(c.y, 2.0f), lutRow(c.z, 3.0f));
     float3 hsv = rgb2hsv(saturate(c));

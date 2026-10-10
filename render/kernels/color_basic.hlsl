@@ -7,7 +7,7 @@
 float4 kernel_main(KERNEL_CTX) {
     float4 src = SAMPLE_POINT(0, ctx.uv);
     if (src.w <= 0.0f) return src;
-    float3 c = xyz(src) / src.w;
+    float3 c = XYZ(src) / src.w;
     // White balance (simple RGB gains).
     float temp = P(2).x;
     float tint = P(2).y;

@@ -12,13 +12,13 @@ float4 kernel_main(KERNEL_CTX) {
         m = SAMPLE(1, ctx.uv).x;
     } else {
         float aspect = P(2).z;
-        float2 d = ctx.uv - xy(P(0));
+        float2 d = ctx.uv - XY(P(0));
         d.x = d.x * aspect;
         float s = sin(-P(1).x);
         float c = cos(-P(1).x);
         d = float2(d.x * c - d.y * s, d.x * s + d.y * c);
         d.x = d.x / aspect;
-        float2 hs = zw(P(0)) + float2(P(1).z, P(1).z);
+        float2 hs = ZW(P(0)) + float2(P(1).z, P(1).z);
         hs = max(hs, float2(0.0001f, 0.0001f));
         float feather = max(P(1).y, 0.0001f);
         float dist;

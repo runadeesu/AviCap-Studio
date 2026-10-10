@@ -21,7 +21,7 @@ float4 kernel_main(KERNEL_CTX) {
     float2 uv = ctx.uv;
     float2 dir = dirVec(P(0).z);
     float soft = max(P(0).w, 0.001f);
-    float4 color = float4(xyz(P(1)), 1.0f);
+    float4 color = float4(XYZ(P(1)), 1.0f);
     if (type == 1) {
         if (p < 0.5f) return lerp(sampleA(uv), color, p * 2.0f);
         return lerp(color, sampleB(uv), (p - 0.5f) * 2.0f);

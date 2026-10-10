@@ -10,7 +10,7 @@ float4 kernel_main(KERNEL_CTX) {
     float r = length(d) * 2.0f;
     float v = smoothstep(P(0).y, P(0).y + max(P(0).z, 0.001f), r);
     float amount = P(0).x;
-    float3 rgb = xyz(c);
+    float3 rgb = XYZ(c);
     if (amount >= 0.0f) rgb = rgb * (1.0f - v * amount);
     else rgb = lerp(rgb, float3(c.w, c.w, c.w), v * -amount);
     return float4(rgb, c.w);

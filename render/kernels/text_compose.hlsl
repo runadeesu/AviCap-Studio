@@ -12,19 +12,19 @@ float4 kernel_main(KERNEL_CTX) {
     float4 bg = P(7);
     float4 rect = P(8);
     if (bg.w > 0.0f && ctx.uv.x >= rect.x && ctx.uv.x <= rect.z && ctx.uv.y >= rect.y && ctx.uv.y <= rect.w)
-        outc = float4(xyz(bg) * bg.w, bg.w);
+        outc = float4(XYZ(bg) * bg.w, bg.w);
     if (P(5).w > 0.5f) {
-        float sa = SAMPLE(2, ctx.uv - xy(P(5))).w * P(4).w;
-        outc = over(outc, float4(xyz(P(4)) * sa, sa));
+        float sa = SAMPLE(2, ctx.uv - XY(P(5))).w * P(4).w;
+        outc = over(outc, float4(XYZ(P(4)) * sa, sa));
     }
     float4 glowC = P(6);
     if (glowC.w > 0.0f) {
         float ga = saturate(SAMPLE(3, ctx.uv).w * glowC.w * 1.5f);
-        outc = over(outc, float4(xyz(glowC) * ga, ga));
+        outc = over(outc, float4(XYZ(glowC) * ga, ga));
     }
     if (P(5).z > 0.5f) {
         float st = SAMPLE(1, ctx.uv).w * P(3).w;
-        outc = over(outc, float4(xyz(P(3)) * st, st));
+        outc = over(outc, float4(XYZ(P(3)) * st, st));
     }
     float fa = SAMPLE(0, ctx.uv).w;
     float4 fillC = P(0);
@@ -33,6 +33,6 @@ float4 kernel_main(KERNEL_CTX) {
         fillC = lerp(P(0), P(1), t);
     }
     float a = fa * fillC.w;
-    outc = over(outc, float4(xyz(fillC) * a, a));
+    outc = over(outc, float4(XYZ(fillC) * a, a));
     return outc;
 }

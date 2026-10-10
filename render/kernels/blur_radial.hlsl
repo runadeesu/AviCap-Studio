@@ -5,7 +5,7 @@
 
 float4 kernel_main(KERNEL_CTX) {
     int n = (int)clamp(P(1).x, 2.0f, 48.0f);
-    float2 c = xy(P(0));
+    float2 c = XY(P(0));
     float2 d = ctx.uv - c;
     float4 sum = float4(0.0f, 0.0f, 0.0f, 0.0f);
     LOOP for (int i = 0; i < n; i++) {

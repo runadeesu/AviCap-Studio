@@ -5,7 +5,7 @@
 float4 kernel_main(KERNEL_CTX) {
     float sigma = max(P(0).z, 0.001f);
     int radius = (int)min(P(0).w, 96.0f);
-    float2 stepUv = xy(P(0));
+    float2 stepUv = XY(P(0));
     float4 sum = SAMPLE(0, ctx.uv);
     float wsum = 1.0f;
     float inv = -0.5f / (sigma * sigma);

@@ -11,5 +11,5 @@ float4 kernel_main(KERNEL_CTX) {
     float c = cos(-P(0).z);
     d = float2(d.x * c - d.y * s, d.x * s + d.y * c) / max(P(0).w, 0.01f);
     d.x = d.x / aspect;
-    return SAMPLE(0, d + float2(0.5f, 0.5f) - xy(P(0)));
+    return SAMPLE(0, d + float2(0.5f, 0.5f) - XY(P(0)));
 }

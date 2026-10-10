@@ -34,10 +34,12 @@ struct KernelContext { float2 uv; float2 pos; float2 size; };
 #define LOOP [loop]
 #define UNROLL [unroll]
 #define STATIC_CONST static const
-#define xy(v) ((v).xy)
-#define zw(v) ((v).zw)
-#define xyz(v) ((v).xyz)
-#define yx(v) ((v).yx)
+// Swizzle helpers are upper case: FXC does not expand function-like macros
+// that share a name with a swizzle (xyz(v) stays an undeclared identifier).
+#define XY(v) ((v).xy)
+#define ZW(v) ((v).zw)
+#define XYZ(v) ((v).xyz)
+#define YX(v) ((v).yx)
 )";
 }
 

@@ -7,10 +7,10 @@ float luma709(float3 c) { return dot(c, float3(0.2126f, 0.7152f, 0.0722f)); }
 
 float4 unpremultiply(float4 c) {
     if (c.w <= 0.00001f) return float4(0.0f, 0.0f, 0.0f, 0.0f);
-    return float4(xyz(c) / c.w, c.w);
+    return float4(XYZ(c) / c.w, c.w);
 }
 
-float4 premultiply(float4 c) { return float4(xyz(c) * c.w, c.w); }
+float4 premultiply(float4 c) { return float4(XYZ(c) * c.w, c.w); }
 
 float3 rgb2hsv(float3 c) {
     float cmax = max(c.x, max(c.y, c.z));
@@ -101,11 +101,11 @@ float4 blendOver(float4 dst, float4 src, int mode) {
     if (mode == 0) return src + dst * (1.0f - src.w);
     if (mode == 6) {
         // Add: simple additive on premultiplied values.
-        return float4(min(xyz(dst) + xyz(src), float3(1.0f, 1.0f, 1.0f)), src.w + dst.w * (1.0f - src.w));
+        return float4(min(XYZ(dst) + XYZ(src), float3(1.0f, 1.0f, 1.0f)), src.w + dst.w * (1.0f - src.w));
     }
     float4 cs = unpremultiply(src);
     float4 cb = unpremultiply(dst);
     float3 bl = float3(blendChannel(cb.x, cs.x, mode), blendChannel(cb.y, cs.y, mode), blendChannel(cb.z, cs.z, mode));
-    float3 co = xyz(src) * (1.0f - dst.w) + xyz(dst) * (1.0f - src.w) + src.w * dst.w * bl;
+    float3 co = XYZ(src) * (1.0f - dst.w) + XYZ(dst) * (1.0f - src.w) + src.w * dst.w * bl;
     return float4(co, src.w + dst.w * (1.0f - src.w));
 }

@@ -4,7 +4,7 @@
 
 float4 kernel_main(KERNEL_CTX) {
     int n = (int)clamp(P(0).z, 1.0f, 64.0f);
-    float2 v = xy(P(0));
+    float2 v = XY(P(0));
     float4 sum = float4(0.0f, 0.0f, 0.0f, 0.0f);
     LOOP for (int i = 0; i < n; i++) {
         float t = n > 1 ? float(i) / float(n - 1) : 0.5f;

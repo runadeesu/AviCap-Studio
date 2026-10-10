@@ -75,7 +75,7 @@ float4 kernel_main(KERNEL_CTX) {
         float a = P(0).w > 0.5f ? SAMPLE(3, uv).x : 1.0f;
         rgba = float4(y + k.x * v, y + k.y * u + k.z * v, y + k.w * u, a);
     }
-    float3 c = xyz(rgba);
+    float3 c = XYZ(rgba);
     int transfer = (int)P(2).y;
     if (transfer == 1) {
         float3 nits = float3(pqToLinearNits(saturate(c.x)), pqToLinearNits(saturate(c.y)), pqToLinearNits(saturate(c.z)));

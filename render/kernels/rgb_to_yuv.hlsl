@@ -7,7 +7,7 @@
 
 float4 kernel_main(KERNEL_CTX) {
     float4 c = SAMPLE(0, ctx.uv);
-    float3 rgb = saturate(xyz(c));
+    float3 rgb = saturate(XYZ(c));
     float kr = P(1).x;
     float kg = P(1).y;
     float kb = P(1).z;

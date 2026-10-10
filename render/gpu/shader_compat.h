@@ -5,7 +5,7 @@
 // GPU backends and as C++ (with this header) for the CPU backend. Kernel code
 // therefore follows a few rules:
 //   * vectors: float2/float3/float4 with .x .y .z .w members only (no swizzles;
-//     use xy(v), xyz(v) helpers), explicit constructors
+//     use XY(v), XYZ(v) helpers), explicit constructors
 //   * textures only through SAMPLE(i, uv) / SAMPLE_POINT(i, uv) / TEXSIZE(i)
 //   * parameters only through P(n) (float4) and ctx fields
 //   * loops use LOOP before `for` when the bound is dynamic
@@ -92,11 +92,11 @@ AVC_VEC_OPS(float4, 4)
 #undef AVC_VEC_OPS
 
 // ---- swizzle helpers (same names exist in the HLSL prelude) -------------------
-inline float2 xy(float4 v) { return {v.x, v.y}; }
-inline float2 zw(float4 v) { return {v.z, v.w}; }
-inline float2 xy(float3 v) { return {v.x, v.y}; }
-inline float3 xyz(float4 v) { return {v.x, v.y, v.z}; }
-inline float2 yx(float2 v) { return {v.y, v.x}; }
+inline float2 XY(float4 v) { return {v.x, v.y}; }
+inline float2 ZW(float4 v) { return {v.z, v.w}; }
+inline float2 XY(float3 v) { return {v.x, v.y}; }
+inline float3 XYZ(float4 v) { return {v.x, v.y, v.z}; }
+inline float2 YX(float2 v) { return {v.y, v.x}; }
 
 // ---- scalar intrinsics ---------------------------------------------------------
 inline float saturate(float v) { return std::clamp(v, 0.0f, 1.0f); }

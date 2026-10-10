@@ -4,8 +4,8 @@
 #include "common.hlsli"
 
 float4 kernel_main(KERNEL_CTX) {
-    float2 ro = xy(P(0));
-    float2 bo = zw(P(0));
+    float2 ro = XY(P(0));
+    float2 bo = ZW(P(0));
     if (P(1).x > 0.5f) {
         float2 d = ctx.uv - float2(0.5f, 0.5f);
         ro = d * P(1).y;

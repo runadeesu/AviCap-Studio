@@ -10,7 +10,7 @@ float4 kernel_main(KERNEL_CTX) {
     float n2 = valueNoise(p + float2(17.3f, 3.1f)) - 0.5f;
     float n3 = valueNoise(p + float2(5.9f, 29.4f)) - 0.5f;
     float3 n = P(0).z > 0.5f ? float3(n1, n1, n1) : float3(n1, n2, n3);
-    float3 rgb = xyz(c);
+    float3 rgb = XYZ(c);
     float resp = 1.0f;
     if (P(1).x > 0.5f) {
         float l = luma709(rgb / max(c.w, 0.0001f));

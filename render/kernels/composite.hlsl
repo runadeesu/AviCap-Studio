@@ -9,7 +9,7 @@
 
 float4 kernel_main(KERNEL_CTX) {
     float4 dst = P(4).w > 0.5f ? SAMPLE_POINT(0, ctx.uv) : float4(0.0f, 0.0f, 0.0f, 0.0f);
-    float2 lp = float2(dot(xyz(P(0)), float3(ctx.pos, 1.0f)), dot(xyz(P(1)), float3(ctx.pos, 1.0f)));
+    float2 lp = float2(dot(XYZ(P(0)), float3(ctx.pos, 1.0f)), dot(XYZ(P(1)), float3(ctx.pos, 1.0f)));
     float4 crop = P(3);
     float edge = min(min(lp.x - crop.x, crop.z - lp.x), min(lp.y - crop.y, crop.w - lp.y));
     float coverage = saturate(edge * max(P(4).z, 0.0001f) + 0.5f);

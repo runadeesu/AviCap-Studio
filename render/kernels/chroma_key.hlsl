@@ -12,8 +12,8 @@ float2 chromaUV(float3 c) {
 float4 kernel_main(KERNEL_CTX) {
     float4 src = SAMPLE_POINT(0, ctx.uv);
     if (src.w <= 0.0f) return src;
-    float3 c = xyz(src) / src.w;
-    float3 key = xyz(P(0));
+    float3 c = XYZ(src) / src.w;
+    float3 key = XYZ(P(0));
     float d = distance(chromaUV(c), chromaUV(key));
     float tol = P(0).w * 0.5f;
     float soft = max(P(1).x * 0.5f, 0.0001f);
